@@ -161,7 +161,7 @@ update := gmqb.NewUpdate().
     Max("field", value).              // $max
     Rename("old", "new").             // $rename
     CurrentDate("field").             // $currentDate
-    CurrentDateAsTimestamp("field").   // $currentDate (timestamp)
+    CurrentDateAsTimestamp("field").  // $currentDate (timestamp)
     SetOnInsert("field", value).      // $setOnInsert
     Push("arr", value).               // $push
     AddToSet("arr", value).           // $addToSet
@@ -180,7 +180,7 @@ update := gmqb.NewUpdate().
 ```go
 pipeline := gmqb.NewPipeline().
     Match(filter).                         // $match
-    Group(gmqb.GroupSpec(                   // $group — with helpers
+    Group(gmqb.GroupSpec(                  // $group — with helpers
         gmqb.GroupID("$country", "$city"),
         gmqb.GroupAcc("total", gmqb.AccSum(1)),
         gmqb.GroupAcc("avgAge", gmqb.AccAvg("$age")),
@@ -189,7 +189,7 @@ pipeline := gmqb.NewPipeline().
     Sort(gmqb.Desc("total")).              // $sort
     Limit(10).                             // $limit
     Skip(20).                              // $skip
-    Unwind("$field").                       // $unwind
+    Unwind("$field").                      // $unwind
     Lookup(gmqb.LookupOpts{...}).          // $lookup
     LookupPipeline(gmqb.LookupPipelineOpts{...}). // $lookup (sub-pipeline)
     AddFields(gmqb.AddFieldsSpec(          // $addFields — with helpers
@@ -223,12 +223,44 @@ pipeline := gmqb.NewPipeline().
 ```go
 coll := gmqb.Wrap[User](db.Collection("users"))
 
+// Single operations
 users, err := coll.Find(ctx, filter, gmqb.WithLimit(10))
 user, err := coll.FindOne(ctx, filter)
 res, err := coll.InsertOne(ctx, &user)
 res, err := coll.UpdateOne(ctx, filter, update, gmqb.WithUpsert(true))
 res, err := coll.DeleteMany(ctx, filter)
 count, err := coll.CountDocuments(ctx, filter)
+
+// Bulk operations
+models := []gmqb.WriteModel[User]{
+    gmqb.NewInsertOneModel[User]().SetDocument(&User{Name: "Alice"}),
+    gmqb.NewUpdateOneModel[User]().
+        SetFilter(gmqb.Eq("name", "Bob")).
+        SetUpdate(gmqb.NewUpdate().Set("age", 25)),
+    gmqb.NewDeleteManyModel[User]().
+        SetFilter(gmqb.Lt("age", 18)),
+}
+bulkRes, err := coll.BulkWrite(ctx, models, gmqb.WithOrdered(false))
+```
+
+### Struct Schema Reflection
+
+You can use the `gmqb.Field[T]` helper to resolve BSON struct tags from your Go models so you don't have to hardcode database field names:
+
+```go
+type User struct {
+    FirstName string `bson:"first_name"`
+    Age       int    `bson:"age"`
+}
+
+// Gives a resolver function for the User type
+f := gmqb.Field[User]
+
+// Uses reflection to find the BSON tags "first_name" and "age"
+filter := gmqb.And(
+    gmqb.Eq(f("FirstName"), "Alice"),
+    gmqb.Gte(f("Age"), 18),
+)
 ```
 
 ### JSON Output
@@ -258,6 +290,7 @@ The `examples/` directory contains 13 runnable programs demonstrating every majo
 | `11_expressions` | `ExprCond`, `ExprMultiply`, `AddFieldsSpec` |
 | `12_crud_generics` | Typed `Collection[T]` CRUD patterns |
 | `13_json_output` | `JSON()` and `CompactJSON()` serialization |
+| `14_bulk_write` | Typed `WriteModel[T]` inserts, updates, deletes, and replaces via `BulkWrite` |
 
 ## Documentation
 
