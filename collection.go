@@ -226,6 +226,82 @@ func (c *Collection[T]) DeleteMany(ctx context.Context, filter Filter) (*mongo.D
 	return c.coll.DeleteMany(ctx, filter.BsonD())
 }
 
+// FindOneAndDelete deletes a single document matching the filter and returns it.
+// Returns mongo.ErrNoDocuments if no document matches.
+//
+// See: https://www.mongodb.com/docs/drivers/go/current/crud/compound-operations/#find-and-delete
+//
+// Example:
+//
+//	deletedUser, err := coll.FindOneAndDelete(ctx, gmqb.Eq("name", "Alice"))
+func (c *Collection[T]) FindOneAndDelete(ctx context.Context, filter Filter, opts ...FindOneAndDeleteOpt) (*T, error) {
+	if filter.IsEmpty() {
+		return nil, fmt.Errorf("%w: FindOneAndDelete requires a non-empty filter", ErrEmptyFilter)
+	}
+	deleteOpts := buildFindOneAndDeleteOpts(opts)
+	var result T
+	err := c.coll.FindOneAndDelete(ctx, filter.BsonD(), deleteOpts).Decode(&result)
+	if err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// FindOneAndUpdate updates a single document matching the filter and returns it.
+// By default, it returns the document as it was before the update. Use WithReturnDocument(options.After)
+// to return the updated document. Returns mongo.ErrNoDocuments if no document matches.
+//
+// See: https://www.mongodb.com/docs/drivers/go/current/crud/compound-operations/#find-and-update
+//
+// Example:
+//
+//	updatedUser, err := coll.FindOneAndUpdate(ctx,
+//	    gmqb.Eq("name", "Alice"),
+//	    gmqb.NewUpdate().Set("age", 31),
+//	    gmqb.WithReturnDocument(options.After),
+//	)
+func (c *Collection[T]) FindOneAndUpdate(ctx context.Context, filter Filter, update Updater, opts ...FindOneAndUpdateOpt) (*T, error) {
+	if filter.IsEmpty() {
+		return nil, fmt.Errorf("%w: FindOneAndUpdate requires a non-empty filter", ErrEmptyFilter)
+	}
+	if update.IsEmpty() {
+		return nil, fmt.Errorf("%w: FindOneAndUpdate requires a non-empty update", ErrEmptyUpdate)
+	}
+	updateOpts := buildFindOneAndUpdateOpts(opts)
+	var result T
+	err := c.coll.FindOneAndUpdate(ctx, filter.BsonD(), update.BsonD(), updateOpts).Decode(&result)
+	if err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// FindOneAndReplace replaces a single document matching the filter and returns it.
+// By default, it returns the document as it was before the replacement. Use WithReturnDocumentReplace(options.After)
+// to return the replaced document. Returns mongo.ErrNoDocuments if no document matches.
+//
+// See: https://www.mongodb.com/docs/drivers/go/current/crud/compound-operations/#find-and-replace
+//
+// Example:
+//
+//	replacedUser, err := coll.FindOneAndReplace(ctx,
+//		gmqb.Eq("name", "Alice"),
+//		&User{Name: "Alice", Age: 31},
+//		gmqb.WithReturnDocumentReplace(options.After),
+//	)
+func (c *Collection[T]) FindOneAndReplace(ctx context.Context, filter Filter, replacement *T, opts ...FindOneAndReplaceOpt) (*T, error) {
+	if filter.IsEmpty() {
+		return nil, fmt.Errorf("%w: FindOneAndReplace requires a non-empty filter", ErrEmptyFilter)
+	}
+	replaceOpts := buildFindOneAndReplaceOpts(opts)
+	var result T
+	err := c.coll.FindOneAndReplace(ctx, filter.BsonD(), replacement, replaceOpts).Decode(&result)
+	if err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
 // CountDocuments returns the number of documents matching the filter.
 //
 // See: https://www.mongodb.com/docs/drivers/go/current/fundamentals/crud/read-operations/count/

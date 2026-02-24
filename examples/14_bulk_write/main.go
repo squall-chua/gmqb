@@ -9,6 +9,7 @@ import (
 	"go.mongodb.org/mongo-driver/v2/mongo/options"
 
 	"github.com/squall-chua/gmqb"
+	"github.com/tryvium-travels/memongo"
 )
 
 type User struct {
@@ -20,8 +21,16 @@ type User struct {
 }
 
 func main() {
-	// 1. Connect to MongoDB
-	clientOpt := options.Client().ApplyURI("mongodb://localhost:27017")
+	// 1. Setup in-memory MongoDB
+	mongoServer, err := memongo.StartWithOptions(&memongo.Options{
+		MongoVersion: "8.2.5",
+	})
+	if err != nil {
+		log.Fatalf("Failed to start memongo: %v", err)
+	}
+	defer mongoServer.Stop()
+
+	clientOpt := options.Client().ApplyURI(mongoServer.URI())
 	client, err := mongo.Connect(clientOpt)
 	if err != nil {
 		log.Fatalf("mongo connect error: %v", err)
