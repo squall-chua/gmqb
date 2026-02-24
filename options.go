@@ -105,3 +105,28 @@ func buildUpdateManyOpts(opts []UpdateManyOpt) *options.UpdateManyOptionsBuilder
 	}
 	return o
 }
+
+// --- Bulk Write Options ---
+
+// BulkWriteOpt is a functional option for configuring bulk write operations.
+type BulkWriteOpt func(*options.BulkWriteOptionsBuilder)
+
+// WithOrdered sets the ordered flag. When true, operations are executed serially.
+//
+// Example:
+//
+//	coll.BulkWrite(ctx, models, gmqb.WithOrdered(false))
+func WithOrdered(ordered bool) BulkWriteOpt {
+	return func(o *options.BulkWriteOptionsBuilder) {
+		o.SetOrdered(ordered)
+	}
+}
+
+// buildBulkWriteOpts applies functional options to a BulkWriteOptionsBuilder.
+func buildBulkWriteOpts(opts []BulkWriteOpt) *options.BulkWriteOptionsBuilder {
+	o := options.BulkWrite()
+	for _, opt := range opts {
+		opt(o)
+	}
+	return o
+}

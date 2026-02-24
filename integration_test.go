@@ -553,3 +553,32 @@ func TestIntegration_FilterChain_RegexAndExists(t *testing.T) {
 	require.Len(t, users, 1)
 	assert.Equal(t, "Alice", users[0].Name)
 }
+
+func TestIntegration_BulkWrite(t *testing.T) {
+	coll := freshCollection(t)
+	ctx := context.Background()
+	seedUsers(t, coll)
+
+	models := []gmqb.WriteModel[User]{
+		gmqb.NewInsertOneModel[User]().SetDocument(&User{Name: "Zack", Age: 20, Country: "US", Active: true}),
+		gmqb.NewUpdateOneModel[User]().
+			SetFilter(gmqb.Eq("name", "Alice")).
+			SetUpdate(gmqb.NewUpdate().Set("age", 31)),
+		gmqb.NewDeleteOneModel[User]().
+			SetFilter(gmqb.Eq("name", "Charlie")),
+		gmqb.NewReplaceOneModel[User]().
+			SetFilter(gmqb.Eq("name", "Eve")).
+			SetReplacement(&User{Name: "Eve Replaced", Age: 99, Country: "UK", Active: true}),
+	}
+
+	res, err := coll.BulkWrite(ctx, models)
+	require.NoError(t, err)
+
+	assert.Equal(t, int64(1), res.InsertedCount)
+	assert.Equal(t, int64(2), res.ModifiedCount)
+	assert.Equal(t, int64(1), res.DeletedCount)
+
+	count, err := coll.CountDocuments(ctx, gmqb.Raw(bson.D{}))
+	require.NoError(t, err)
+	assert.Equal(t, int64(5), count)
+}

@@ -133,6 +133,29 @@ func (c *Collection[T]) InsertMany(ctx context.Context, docs []T) (*mongo.Insert
 	return c.coll.InsertMany(ctx, ifaces)
 }
 
+// BulkWrite performs multiple write operations in a single batch.
+//
+// See: https://www.mongodb.com/docs/drivers/go/current/fundamentals/crud/write-operations/bulk/
+//
+// Example:
+//
+//	models := []gmqb.WriteModel[User]{
+//	    gmqb.NewInsertOneModel[User]().SetDocument(&User{Name: "Alice"}),
+//	    gmqb.NewUpdateOneModel[User]().SetFilter(gmqb.Eq("name", "Bob")).SetUpdate(gmqb.NewUpdate().Set("age", 25)),
+//	}
+//	result, err := coll.BulkWrite(ctx, models)
+func (c *Collection[T]) BulkWrite(ctx context.Context, models []WriteModel[T], opts ...BulkWriteOpt) (*mongo.BulkWriteResult, error) {
+	if len(models) == 0 {
+		return nil, nil // Return empty if no models specified
+	}
+	mongoModels := make([]mongo.WriteModel, len(models))
+	for i, m := range models {
+		mongoModels[i] = m.MongoWriteModel()
+	}
+	bwOpts := buildBulkWriteOpts(opts)
+	return c.coll.BulkWrite(ctx, mongoModels, bwOpts)
+}
+
 // UpdateOne updates a single document matching the filter.
 //
 // See: https://www.mongodb.com/docs/drivers/go/current/fundamentals/crud/write-operations/modify/
