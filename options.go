@@ -130,3 +130,67 @@ func buildBulkWriteOpts(opts []BulkWriteOpt) *options.BulkWriteOptionsBuilder {
 	}
 	return o
 }
+
+// --- FindOneAndDelete Options ---
+
+// FindOneAndDeleteOpt is a functional option for configuring FindOneAndDelete operations.
+type FindOneAndDeleteOpt func(*options.FindOneAndDeleteOptionsBuilder)
+
+// buildFindOneAndDeleteOpts applies functional options to a FindOneAndDeleteOptionsBuilder.
+func buildFindOneAndDeleteOpts(opts []FindOneAndDeleteOpt) *options.FindOneAndDeleteOptionsBuilder {
+	o := options.FindOneAndDelete()
+	for _, opt := range opts {
+		opt(o)
+	}
+	return o
+}
+
+// --- FindOneAndUpdate Options ---
+
+// FindOneAndUpdateOpt is a functional option for configuring FindOneAndUpdate operations.
+type FindOneAndUpdateOpt func(*options.FindOneAndUpdateOptionsBuilder)
+
+// WithReturnDocument specifies whether to return the original or the updated document.
+//
+// Example:
+//
+//	coll.FindOneAndUpdate(ctx, filter, update, gmqb.WithReturnDocument(options.After))
+func WithReturnDocument(rd options.ReturnDocument) FindOneAndUpdateOpt {
+	return func(o *options.FindOneAndUpdateOptionsBuilder) {
+		o.SetReturnDocument(rd)
+	}
+}
+
+// buildFindOneAndUpdateOpts applies functional options to a FindOneAndUpdateOptionsBuilder.
+func buildFindOneAndUpdateOpts(opts []FindOneAndUpdateOpt) *options.FindOneAndUpdateOptionsBuilder {
+	o := options.FindOneAndUpdate()
+	for _, opt := range opts {
+		opt(o)
+	}
+	return o
+}
+
+// --- FindOneAndReplace Options ---
+
+// FindOneAndReplaceOpt is a functional option for configuring FindOneAndReplace operations.
+type FindOneAndReplaceOpt func(*options.FindOneAndReplaceOptionsBuilder)
+
+// WithReturnDocumentReplace specifies whether to return the original or the replaced document.
+//
+// Example:
+//
+//	coll.FindOneAndReplace(ctx, filter, replace, gmqb.WithReturnDocumentReplace(options.After))
+func WithReturnDocumentReplace(rd options.ReturnDocument) FindOneAndReplaceOpt {
+	return func(o *options.FindOneAndReplaceOptionsBuilder) {
+		o.SetReturnDocument(rd)
+	}
+}
+
+// buildFindOneAndReplaceOpts applies functional options to a FindOneAndReplaceOptionsBuilder.
+func buildFindOneAndReplaceOpts(opts []FindOneAndReplaceOpt) *options.FindOneAndReplaceOptionsBuilder {
+	o := options.FindOneAndReplace()
+	for _, opt := range opts {
+		opt(o)
+	}
+	return o
+}

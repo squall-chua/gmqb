@@ -231,6 +231,11 @@ res, err := coll.UpdateOne(ctx, filter, update, gmqb.WithUpsert(true))
 res, err := coll.DeleteMany(ctx, filter)
 count, err := coll.CountDocuments(ctx, filter)
 
+// Compound operations
+deletedUser, err := coll.FindOneAndDelete(ctx, filter)
+updatedUser, err := coll.FindOneAndUpdate(ctx, filter, update, gmqb.WithReturnDocument(options.After))
+replacedUser, err := coll.FindOneAndReplace(ctx, filter, &replacement)
+
 // Bulk operations
 models := []gmqb.WriteModel[User]{
     gmqb.NewInsertOneModel[User]().SetDocument(&User{Name: "Alice"}),
@@ -291,6 +296,7 @@ The `examples/` directory contains 13 runnable programs demonstrating every majo
 | `12_crud_generics` | Typed `Collection[T]` CRUD patterns |
 | `13_json_output` | `JSON()` and `CompactJSON()` serialization |
 | `14_bulk_write` | Typed `WriteModel[T]` inserts, updates, deletes, and replaces via `BulkWrite` |
+| `15_compound_operations` | Atomic `FindOneAndDelete`, `FindOneAndUpdate`, and `FindOneAndReplace` operations via `Collection[T]` |
 
 ## Documentation
 

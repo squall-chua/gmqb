@@ -187,7 +187,8 @@ Uses `bson.MarshalExtJSON(d, false, false)` for canonical Extended JSON without 
 
 ## Generics Strategy
 
-- `Collection[T]` — binds the document type for CRUD. `Find` returns `[]T`, `FindOne` returns `*T`.
+- `Collection[T]` — binds the document type for CRUD. `Find` returns `[]T`, `FindOne`, `FindOneAndUpdate`, etc. return `*T`.
+- `BulkWrite` — takes `WriteModel[T]` typed interfaces.
 - `Aggregate[R, T]` — separate result type `R` for pipelines that reshape documents.
 
 ## Extensibility

@@ -483,6 +483,90 @@ func TestIntegration_Find_WithSkip(t *testing.T) {
 	assert.Equal(t, "Eve", users[1].Name)
 }
 
+func TestIntegration_FindOneAndDelete(t *testing.T) {
+	coll := freshCollection(t)
+	ctx := context.Background()
+	seedUsers(t, coll)
+
+	deleted, err := coll.FindOneAndDelete(ctx, gmqb.Eq("name", "Bob"))
+	require.NoError(t, err)
+	assert.Equal(t, "Bob", deleted.Name)
+
+	// Verify it's actually deleted
+	count, err := coll.CountDocuments(ctx, gmqb.Eq("name", "Bob"))
+	require.NoError(t, err)
+	assert.Equal(t, int64(0), count)
+
+	// Delete non-existent
+	_, err = coll.FindOneAndDelete(ctx, gmqb.Eq("name", "NonExistent"))
+	assert.ErrorIs(t, err, mongo.ErrNoDocuments)
+}
+
+func TestIntegration_FindOneAndUpdate(t *testing.T) {
+	coll := freshCollection(t)
+	ctx := context.Background()
+	seedUsers(t, coll)
+
+	// By default, returns the document BEFORE the update
+	before, err := coll.FindOneAndUpdate(ctx,
+		gmqb.Eq("name", "Alice"),
+		gmqb.NewUpdate().Set("age", 31),
+	)
+	require.NoError(t, err)
+	assert.Equal(t, 30, before.Age) // original age
+
+	// With options.After, returns the document AFTER the update
+	after, err := coll.FindOneAndUpdate(ctx,
+		gmqb.Eq("name", "Alice"),
+		gmqb.NewUpdate().Set("age", 32),
+		gmqb.WithReturnDocument(mongooptions.After),
+	)
+	require.NoError(t, err)
+	assert.Equal(t, 32, after.Age) // updated age
+
+	// Update non-existent
+	_, err = coll.FindOneAndUpdate(ctx,
+		gmqb.Eq("name", "NonExistent"),
+		gmqb.NewUpdate().Set("age", 100),
+	)
+	assert.ErrorIs(t, err, mongo.ErrNoDocuments)
+}
+
+func TestIntegration_FindOneAndReplace(t *testing.T) {
+	coll := freshCollection(t)
+	ctx := context.Background()
+	seedUsers(t, coll)
+
+	replacement := &User{Name: "Diana Replaced", Age: 99, Email: "diana-r@example.com", Country: "DK", Active: true}
+
+	// Returns the document BEFORE the replace by default
+	before, err := coll.FindOneAndReplace(ctx,
+		gmqb.Eq("name", "Diana"),
+		replacement,
+	)
+	require.NoError(t, err)
+	assert.Equal(t, "Diana", before.Name)
+	assert.Equal(t, 28, before.Age)
+
+	// Replace again with ReturnDocument = After
+	replacement2 := &User{Name: "Diana Replaced 2", Age: 100, Email: "diana-r2@example.com", Country: "DK", Active: true}
+	after, err := coll.FindOneAndReplace(ctx,
+		gmqb.Eq("name", "Diana Replaced"),
+		replacement2,
+		gmqb.WithReturnDocumentReplace(mongooptions.After),
+	)
+	require.NoError(t, err)
+	assert.Equal(t, "Diana Replaced 2", after.Name)
+	assert.Equal(t, 100, after.Age)
+
+	// Replace non-existent
+	_, err = coll.FindOneAndReplace(ctx,
+		gmqb.Eq("name", "NonExistent"),
+		&User{Name: "Ghost", Age: 0},
+	)
+	assert.ErrorIs(t, err, mongo.ErrNoDocuments)
+}
+
 // --- Filter Chaining Tests ---
 
 func TestIntegration_FilterChain_Basic(t *testing.T) {
