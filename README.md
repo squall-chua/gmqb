@@ -276,6 +276,56 @@ fmt.Println(filter.JSON())        // pretty-printed
 fmt.Println(filter.CompactJSON()) // compact
 ```
 
+## Code Generator
+
+The `generator` package allows you to translate raw MongoDB query JSON strings directly into equivalent `gmqb` Go code. The generator auto-detects if you are passing a JSON object (`{...}`) and builds a Filter, or a JSON array (`[...]`) and builds a Pipeline. This is extremely useful if you want to test out a query in a graphical tool (like MongoDB Compass) and smoothly convert it into type-safe code for your backend.
+
+### Programmatic Usage
+
+```go
+import "github.com/squall-chua/gmqb/generator"
+
+// Generate a Filter
+jsonFilter := `{"$and": [{"age": {"$gte": 18}}, {"status": {"$in": ["active"]}}]}`
+filterCode, err := generator.Generate(jsonFilter)
+
+fmt.Println(filterCode)
+// Output:
+// gmqb.And(
+//     gmqb.Gte("age", 18),
+//     gmqb.In("status", "active"),
+// )
+
+// Generate a Pipeline
+jsonPipeline := `[{"$match": {"status": "A"}}, {"$limit": 10}]`
+pipelineCode, err := generator.Generate(jsonPipeline)
+
+fmt.Println(pipelineCode)
+// Output:
+// gmqb.NewPipeline().
+//     Match(gmqb.Eq("status", "A")).
+//     Limit(10)
+```
+
+### CLI Tool (`gmqb-gen`)
+
+You can also use the packaged CLI tool directly from the terminal to format JSON into `gmqb` code. 
+
+Install the binary:
+```bash
+go install github.com/squall-chua/gmqb/cmd/gmqb-gen@latest
+```
+
+Pass the JSON object or array directly from stdin:
+```bash
+echo '[{"$match": {"status": "active"}}, {"$limit": 10}]' | gmqb-gen
+```
+
+Or via the `-query` flag:
+```bash
+gmqb-gen -query='{"age": {"$gte": 18}}'
+```
+
 ## Examples
 
 The `examples/` directory contains 13 runnable programs demonstrating every major feature:
