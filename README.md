@@ -28,6 +28,7 @@ filter := gmqb.And(
 ## Features
 
 - **Full MQL coverage** — Query predicates, update operators, 30+ aggregation pipeline stages, and ~120 expression operators
+- **Query Cache** — Transparent, auto-invalidating read cache powered by [eko/gocache](https://github.com/eko/gocache) and MongoDB Change Streams
 - **Type-safe CRUD** — Generic `Collection[T]` wrapper with typed results
 - **Struct schema reflection** — Resolve BSON field names from Go struct tags
 - **Immutable builders** — Thread-safe, no side effects
@@ -248,6 +249,83 @@ models := []gmqb.WriteModel[User]{
 bulkRes, err := coll.BulkWrite(ctx, models, gmqb.WithOrdered(false))
 ```
 
+### Query Cache
+
+gmqb provides a robust caching layer for read operations (`Find`, `FindOne`, `CountDocuments`, `Aggregate`). The caching layer uses [eko/gocache](https://github.com/eko/gocache), meaning you can back your cache with Redis, Memcached, or an in-memory store like `go-cache`.
+
+Write operations (`Insert`, `Update`, `Delete`) bypass the cache completely.
+
+#### 1. Basic In-Memory Cache
+
+Wrap your generated generic collection with `WrapWithCache` and pass in a `gocache` interface. 
+
+```go
+import (
+    "time"
+    gocache "github.com/patrickmn/go-cache"
+    gocachestore "github.com/eko/gocache/store/go_cache/v4"
+    "github.com/eko/gocache/lib/v4/cache"
+)
+
+// Configure gocache manager
+client := gocache.New(5*time.Minute, 10*time.Minute)
+store := gocachestore.NewGoCache(client)
+cacheManager := cache.New[[]byte](store)
+
+// Wrap your generic collection
+rawColl := db.Collection("users")
+cachedUsers := gmqb.WrapWithCache[User](rawColl, cacheManager, time.Minute)
+
+// Reads go through the cache first
+user, _ := cachedUsers.FindOne(ctx, gmqb.Eq("email", "test@test.com"))
+```
+
+#### 2. Automatic Change Stream Invalidation
+
+For replica-set or Atlas deployments, use standard cache TTL for general expiry, but immediately invalidate affected cache entries automatically whenever a database write occurs using the `ChangeStreamInvalidator`. Write events directly wipe the tags linked to that collection's cached query keys.
+
+```go
+// Set up the invalidator
+inv := gmqb.NewChangeStreamInvalidator(rawColl, cacheManager)
+
+// Watch indefinitely in the background (auto-reconnects on failure)
+go func() {
+    if err := inv.Watch(ctx); err != nil && ctx.Err() == nil {
+        log.Printf("watch stopped: %v", err)
+    }
+}()
+
+// From now on, any Insert/Update/Delete (even outside this process)
+// invalidates all cached queries on the "users" collection!
+```
+
+#### 3. Monitoring Cache Metrics
+
+If you'd like to trace cache hits/misses, wrap the `CachedCollection` with metrics via the corresponding Prometheus adapter or your own implementation matching `metrics.MetricsInterface`.
+
+```go
+import "github.com/eko/gocache/lib/v4/metrics"
+
+metricProvider := metrics.NewPrometheus("my_app")
+
+// Attach the metric capability on the cache definition
+cachedUsers := gmqb.WrapWithCacheAndMetrics[User](
+    rawColl, 
+    cacheManager, 
+    time.Minute, 
+    metricProvider,
+)
+```
+
+#### 4. Manual Invalidation
+
+You can easily bypass the cache tracking manually, perfect when doing massive data seeding via an external mechanism or before unit tests.
+
+```go
+// Flushes all items bound to the collection's caching tag
+err := cachedUsers.InvalidateCache(ctx)
+```
+
 ### Struct Schema Reflection
 
 You can use the `gmqb.Field[T]` helper to resolve BSON struct tags from your Go models so you don't have to hardcode database field names:
@@ -347,6 +425,8 @@ The `examples/` directory contains 13 runnable programs demonstrating every majo
 | `13_json_output` | `JSON()` and `CompactJSON()` serialization |
 | `14_bulk_write` | Typed `WriteModel[T]` inserts, updates, deletes, and replaces via `BulkWrite` |
 | `15_compound_operations` | Atomic `FindOneAndDelete`, `FindOneAndUpdate`, and `FindOneAndReplace` operations via `Collection[T]` |
+| `16_query_cache_basic` | Basic read-caching using in-memory `go-cache` |
+| `17_query_cache_invalidation` | Auto-invalidation via MongoDB Change Streams (requires Replica Set) |
 
 ## Documentation
 
@@ -355,7 +435,9 @@ Every exported function includes GoDoc with:
 2. MongoDB documentation link
 3. Code example
 
-Run `go doc github.com/squall-chua/gmqb`.
+Documentation is also accessible at [pkg.go.dev/github.com/squall-chua/gmqb](https://pkg.go.dev/github.com/squall-chua/gmqb).
+
+Alternatively, run `go doc github.com/squall-chua/gmqb` locally.
 
 ## License
 
