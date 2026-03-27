@@ -257,7 +257,7 @@ Write operations (`Insert`, `Update`, `Delete`) bypass the cache completely.
 
 #### 1. Basic In-Memory Cache
 
-Wrap your generated generic collection with `WrapWithCache` and pass in a `gocache` interface. 
+Wrap your generated generic collection with `WrapWithCache` and pass in a `gocache` interface.
 
 ```go
 import (
@@ -387,19 +387,22 @@ fmt.Println(pipelineCode)
 
 ### CLI Tool (`gmqb-gen`)
 
-You can also use the packaged CLI tool directly from the terminal to format JSON into `gmqb` code. 
+You can also use the packaged CLI tool directly from the terminal to format JSON into `gmqb` code.
 
 Install the binary:
+
 ```bash
 go install github.com/squall-chua/gmqb/cmd/gmqb-gen@latest
 ```
 
 Pass the JSON object or array directly from stdin:
+
 ```bash
 echo '[{"$match": {"status": "active"}}, {"$limit": 10}]' | gmqb-gen
 ```
 
 Or via the `-query` flag:
+
 ```bash
 gmqb-gen -query='{"age": {"$gte": 18}}'
 ```
@@ -431,6 +434,7 @@ The `examples/` directory contains 13 runnable programs demonstrating every majo
 ## Documentation
 
 Every exported function includes GoDoc with:
+
 1. Operator behavior description
 2. MongoDB documentation link
 3. Code example
@@ -438,6 +442,20 @@ Every exported function includes GoDoc with:
 Documentation is also accessible at [pkg.go.dev/github.com/squall-chua/gmqb](https://pkg.go.dev/github.com/squall-chua/gmqb).
 
 Alternatively, run `go doc github.com/squall-chua/gmqb` locally.
+
+## Agent Skill
+
+An AI agent skill for this library is bundled at [`skills/gmqb/SKILL.md`](skills/gmqb/SKILL.md).
+
+It covers:
+
+- How to write filters, updates, and aggregation pipelines with gmqb
+- How to look up documentation (online via pkg.go.dev and locally via `go doc`)
+- How to use the code generator — both the programmatic API and the `gmqb-gen` CLI
+- Query cache setup and Change Stream invalidation patterns
+- A runnable-example index and a diagnostic checklist
+
+Copy the skill folder into your AI assistant's skills directory (e.g. `.agents/skills/`) to activate it, or reference `skills/gmqb/SKILL.md` directly from your agent configuration.
 
 ## License
 
