@@ -30,6 +30,7 @@ filter := gmqb.And(
 - **Full MQL coverage** — Query predicates, update operators, 30+ aggregation pipeline stages, and ~120 expression operators
 - **Query Cache** — Transparent, auto-invalidating read cache powered by [eko/gocache](https://github.com/eko/gocache) and MongoDB Change Streams
 - **Type-safe CRUD** — Generic `Collection[T]` wrapper with typed results
+- **Index Management** — Fluent builder for creating and managing collection indexes
 - **Struct schema reflection** — Resolve BSON field names from Go struct tags
 - **Immutable builders** — Thread-safe, no side effects
 - **Chainable filter API** — Both standalone constructors and fluent method chaining
@@ -152,6 +153,26 @@ gmqb.BitsAnySet("field", mask)
 
 ### Update Operators
 
+Updates can be performed using standard update operators (via `Updater`) or aggregation pipelines (via `Pipeline`). Both implement the `UpdateDoc` interface.
+
+```go
+// Using update operators
+update := gmqb.NewUpdate().
+    Set("status", "active").
+    Inc("points", 10)
+
+// Using an aggregation pipeline as an update
+pipeline := gmqb.NewPipeline().
+    SetFields(gmqb.AddFieldsSpec(
+        gmqb.AddField("total", gmqb.ExprAdd("$price", "$tax")),
+    ))
+
+coll.UpdateOne(ctx, filter, update)   // Standard
+coll.UpdateOne(ctx, filter, pipeline) // Pipeline-based update
+```
+
+Full list of operators:
+
 ```go
 update := gmqb.NewUpdate().
     Set("field", value).              // $set
@@ -229,6 +250,7 @@ users, err := coll.Find(ctx, filter, gmqb.WithLimit(10))
 user, err := coll.FindOne(ctx, filter)
 res, err := coll.InsertOne(ctx, &user)
 res, err := coll.UpdateOne(ctx, filter, update, gmqb.WithUpsert(true))
+res, err := coll.UpsertOne(ctx, filter, update) // Convenience for WithUpsert(true)
 res, err := coll.DeleteMany(ctx, filter)
 count, err := coll.CountDocuments(ctx, filter)
 
@@ -326,6 +348,27 @@ You can easily bypass the cache tracking manually, perfect when doing massive da
 err := cachedUsers.InvalidateCache(ctx)
 ```
 
+### Index Management
+
+gmqb provides a fluent builder for creating and managing collection indexes.
+
+```go
+// Create a unique index
+coll.CreateIndex(ctx, gmqb.NewIndex(gmqb.Asc("email")).Unique().Name("idx_email"))
+
+// Create a TTL index
+coll.CreateIndex(ctx, gmqb.NewIndex(gmqb.Asc("createdAt")).TTL(3600))
+
+// Create compound index
+coll.CreateIndexes(ctx, []gmqb.IndexModel{
+    gmqb.NewIndex(gmqb.SortSpec(gmqb.SortRule("category", 1), gmqb.SortRule("price", -1))),
+})
+
+// List & Drop
+indexes, _ := coll.ListIndexes(ctx)
+_ = coll.DropIndex(ctx, "idx_email")
+```
+
 ### Struct Schema Reflection
 
 You can use the `gmqb.Field[T]` helper to resolve BSON struct tags from your Go models so you don't have to hardcode database field names:
@@ -409,10 +452,10 @@ gmqb-gen -query='{"age": {"$gte": 18}}'
 
 ## Examples
 
-The `examples/` directory contains 13 runnable programs demonstrating every major feature:
+The `examples/` directory contains 17 runnable programs demonstrating every major feature:
 
 | Example | Feature |
-|---------|---------|
+| :--- | :--- |
 | `01_basic_find` | Simple filter with comparison operators |
 | `02_complex_filter` | Logical, regex, and element operators |
 | `03_geospatial` | `Point`, `Near` geospatial queries |
@@ -427,9 +470,9 @@ The `examples/` directory contains 13 runnable programs demonstrating every majo
 | `12_crud_generics` | Typed `Collection[T]` CRUD patterns |
 | `13_json_output` | `JSON()` and `CompactJSON()` serialization |
 | `14_bulk_write` | Typed `WriteModel[T]` inserts, updates, deletes, and replaces via `BulkWrite` |
-| `15_compound_operations` | Atomic `FindOneAndDelete`, `FindOneAndUpdate`, and `FindOneAndReplace` operations via `Collection[T]` |
+| `15_compound_operations` | Atomic `FindOneAndDelete`, `FindOneAndUpdate`, and `FindOneAndReplace` operations |
 | `16_query_cache_basic` | Basic read-caching using in-memory `go-cache` |
-| `17_query_cache_invalidation` | Auto-invalidation via MongoDB Change Streams (requires Replica Set) |
+| `17_query_cache_invalidation` | Auto-invalidation via MongoDB Change Streams |
 
 ## Documentation
 

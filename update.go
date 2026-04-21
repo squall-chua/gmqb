@@ -21,6 +21,13 @@ type Updater struct {
 	ops bson.D
 }
 
+// UpdateDoc is implemented by both Updater and Pipeline, allowing update
+// methods to accept either an operator document or an aggregation pipeline.
+type UpdateDoc interface {
+	updatePayload() interface{}
+	IsEmpty() bool
+}
+
 // NewUpdate creates an empty Updater ready for chaining.
 //
 // Example:
@@ -28,6 +35,11 @@ type Updater struct {
 //	update := gmqb.NewUpdate().Set("name", "Alice")
 func NewUpdate() Updater {
 	return Updater{}
+}
+
+// updatePayload returns the bson.D for Updater.
+func (u Updater) updatePayload() interface{} {
+	return u.ops
 }
 
 // BsonD returns the update document as a bson.D, suitable for passing directly

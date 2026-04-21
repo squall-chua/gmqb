@@ -166,7 +166,7 @@ func (c *Collection[T]) BulkWrite(ctx context.Context, models []WriteModel[T], o
 //	    gmqb.Eq("name", "Alice"),
 //	    gmqb.NewUpdate().Set("age", 31),
 //	)
-func (c *Collection[T]) UpdateOne(ctx context.Context, filter Filter, update Updater, opts ...UpdateOpt) (*mongo.UpdateResult, error) {
+func (c *Collection[T]) UpdateOne(ctx context.Context, filter Filter, update UpdateDoc, opts ...UpdateOpt) (*mongo.UpdateResult, error) {
 	if filter.IsEmpty() {
 		return nil, fmt.Errorf("%w: UpdateOne requires a non-empty filter", ErrEmptyFilter)
 	}
@@ -174,7 +174,7 @@ func (c *Collection[T]) UpdateOne(ctx context.Context, filter Filter, update Upd
 		return nil, fmt.Errorf("%w: UpdateOne requires a non-empty update", ErrEmptyUpdate)
 	}
 	updateOpts := buildUpdateOneOpts(opts)
-	return c.coll.UpdateOne(ctx, filter.BsonD(), update.BsonD(), updateOpts)
+	return c.coll.UpdateOne(ctx, filter.BsonD(), update.updatePayload(), updateOpts)
 }
 
 // UpdateMany updates all documents matching the filter.
@@ -187,7 +187,7 @@ func (c *Collection[T]) UpdateOne(ctx context.Context, filter Filter, update Upd
 //	    gmqb.Lt("age", 18),
 //	    gmqb.NewUpdate().Set("status", "minor"),
 //	)
-func (c *Collection[T]) UpdateMany(ctx context.Context, filter Filter, update Updater, opts ...UpdateManyOpt) (*mongo.UpdateResult, error) {
+func (c *Collection[T]) UpdateMany(ctx context.Context, filter Filter, update UpdateDoc, opts ...UpdateManyOpt) (*mongo.UpdateResult, error) {
 	if filter.IsEmpty() {
 		return nil, fmt.Errorf("%w: UpdateMany requires a non-empty filter", ErrEmptyFilter)
 	}
@@ -195,7 +195,18 @@ func (c *Collection[T]) UpdateMany(ctx context.Context, filter Filter, update Up
 		return nil, fmt.Errorf("%w: UpdateMany requires a non-empty update", ErrEmptyUpdate)
 	}
 	updateOpts := buildUpdateManyOpts(opts)
-	return c.coll.UpdateMany(ctx, filter.BsonD(), update.BsonD(), updateOpts)
+	return c.coll.UpdateMany(ctx, filter.BsonD(), update.updatePayload(), updateOpts)
+}
+
+// UpsertOne updates a single document matching the filter, or inserts a new one
+// if no document matches. It is equivalent to UpdateOne with WithUpsert(true).
+//
+// Example:
+//
+//	result, err := coll.UpsertOne(ctx, gmqb.Eq("email", "alice@example.com"),
+//	    gmqb.NewUpdate().Set("lastLogin", time.Now()))
+func (c *Collection[T]) UpsertOne(ctx context.Context, filter Filter, update UpdateDoc) (*mongo.UpdateResult, error) {
+	return c.UpdateOne(ctx, filter, update, WithUpsert(true))
 }
 
 // DeleteOne deletes a single document matching the filter.
@@ -260,7 +271,7 @@ func (c *Collection[T]) FindOneAndDelete(ctx context.Context, filter Filter, opt
 //	    gmqb.NewUpdate().Set("age", 31),
 //	    gmqb.WithReturnDocument(options.After),
 //	)
-func (c *Collection[T]) FindOneAndUpdate(ctx context.Context, filter Filter, update Updater, opts ...FindOneAndUpdateOpt) (*T, error) {
+func (c *Collection[T]) FindOneAndUpdate(ctx context.Context, filter Filter, update UpdateDoc, opts ...FindOneAndUpdateOpt) (*T, error) {
 	if filter.IsEmpty() {
 		return nil, fmt.Errorf("%w: FindOneAndUpdate requires a non-empty filter", ErrEmptyFilter)
 	}
@@ -269,7 +280,7 @@ func (c *Collection[T]) FindOneAndUpdate(ctx context.Context, filter Filter, upd
 	}
 	updateOpts := buildFindOneAndUpdateOpts(opts)
 	var result T
-	err := c.coll.FindOneAndUpdate(ctx, filter.BsonD(), update.BsonD(), updateOpts).Decode(&result)
+	err := c.coll.FindOneAndUpdate(ctx, filter.BsonD(), update.updatePayload(), updateOpts).Decode(&result)
 	if err != nil {
 		return nil, err
 	}
@@ -349,6 +360,42 @@ func Aggregate[R any, T any](c *Collection[T], ctx context.Context, pipeline Pip
 		return nil, err
 	}
 	var results []R
+	if err := cursor.All(ctx, &results); err != nil {
+		return nil, err
+	}
+	return results, nil
+}
+
+// --- Index Management ---
+
+// CreateIndex creates a single index on the collection.
+// Returns the name of the created index.
+func (c *Collection[T]) CreateIndex(ctx context.Context, model IndexModel) (string, error) {
+	return c.coll.Indexes().CreateOne(ctx, model.MongoIndexModel())
+}
+
+// CreateIndexes creates multiple indexes on the collection.
+// Returns the names of the created indexes.
+func (c *Collection[T]) CreateIndexes(ctx context.Context, models []IndexModel) ([]string, error) {
+	mongoModels := make([]mongo.IndexModel, len(models))
+	for i, m := range models {
+		mongoModels[i] = m.MongoIndexModel()
+	}
+	return c.coll.Indexes().CreateMany(ctx, mongoModels)
+}
+
+// DropIndex drops an index by its name.
+func (c *Collection[T]) DropIndex(ctx context.Context, name string) error {
+	return c.coll.Indexes().DropOne(ctx, name)
+}
+
+// ListIndexes returns a list of all indexes on the collection.
+func (c *Collection[T]) ListIndexes(ctx context.Context) ([]bson.Raw, error) {
+	cursor, err := c.coll.Indexes().List(ctx)
+	if err != nil {
+		return nil, err
+	}
+	var results []bson.Raw
 	if err := cursor.All(ctx, &results); err != nil {
 		return nil, err
 	}

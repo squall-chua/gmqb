@@ -35,6 +35,11 @@ func (p Pipeline) BsonD() []bson.D {
 	return p.stages
 }
 
+// updatePayload returns the []bson.D for Pipeline when used in update operations.
+func (p Pipeline) updatePayload() interface{} {
+	return p.stages
+}
+
 // JSON returns the pipeline as a pretty-printed JSON array string.
 func (p Pipeline) JSON() string {
 	return pipelineToJSON(p.stages)

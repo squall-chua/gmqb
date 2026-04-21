@@ -666,3 +666,90 @@ func TestIntegration_BulkWrite(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, int64(5), count)
 }
+
+func TestIntegration_UpdateOne_WithPipeline(t *testing.T) {
+	coll := freshCollection(t)
+	ctx := context.Background()
+	seedUsers(t, coll)
+
+	// Use aggregation pipeline to update: $set based on other fields
+	pipeline := gmqb.NewPipeline().
+		SetFields(gmqb.AddFieldsSpec(
+			gmqb.AddField("agePlusFive", gmqb.ExprAdd("$age", 5)),
+		))
+
+	result, err := coll.UpdateOne(ctx, gmqb.Eq("name", "Alice"), pipeline)
+	require.NoError(t, err)
+	assert.Equal(t, int64(1), result.ModifiedCount)
+
+	found, err := coll.FindOne(ctx, gmqb.Eq("name", "Alice"))
+	require.NoError(t, err)
+	assert.Equal(t, 35, found.Age+5) // This is just a check, we need to decode the new field
+
+	// Since User struct doesn't have AgePlusFive, we use bson.M to check
+	var raw bson.M
+	err = coll.Unwrap().FindOne(ctx, bson.M{"name": "Alice"}).Decode(&raw)
+	require.NoError(t, err)
+	assert.Equal(t, int32(35), raw["agePlusFive"])
+}
+
+func TestIntegration_UpsertOne(t *testing.T) {
+	coll := freshCollection(t)
+	ctx := context.Background()
+
+	// 1. Insert via upsert
+	result, err := coll.UpsertOne(ctx,
+		gmqb.Eq("email", "new@test.com"),
+		gmqb.NewUpdate().Set("name", "New").Set("age", 20),
+	)
+	require.NoError(t, err)
+	assert.Equal(t, int64(1), result.UpsertedCount)
+
+	// 2. Update via upsert
+	result, err = coll.UpsertOne(ctx,
+		gmqb.Eq("email", "new@test.com"),
+		gmqb.NewUpdate().Set("age", 21),
+	)
+	require.NoError(t, err)
+	assert.Equal(t, int64(1), result.ModifiedCount)
+
+	found, err := coll.FindOne(ctx, gmqb.Eq("email", "new@test.com"))
+	require.NoError(t, err)
+	assert.Equal(t, 21, found.Age)
+}
+
+func TestIntegration_IndexManagement(t *testing.T) {
+	coll := freshCollection(t)
+	ctx := context.Background()
+
+	// Create single index
+	name, err := coll.CreateIndex(ctx, gmqb.NewIndex(gmqb.Asc("email")).Unique())
+	require.NoError(t, err)
+	assert.Equal(t, "email_1", name)
+
+	// Create multiple indexes
+	names, err := coll.CreateIndexes(ctx, []gmqb.IndexModel{
+		gmqb.NewIndex(gmqb.Desc("age")).Name("age_idx"),
+		gmqb.NewIndex(gmqb.SortSpec(gmqb.SortRule("country", 1), gmqb.SortRule("city", 1))),
+	})
+	require.NoError(t, err)
+	assert.Len(t, names, 2)
+	assert.Contains(t, names, "age_idx")
+
+	// List indexes
+	indexes, err := coll.ListIndexes(ctx)
+	require.NoError(t, err)
+	assert.GreaterOrEqual(t, len(indexes), 3) // _id, email, age, country_city
+
+	// Drop index
+	err = coll.DropIndex(ctx, "age_idx")
+	require.NoError(t, err)
+
+	indexes, err = coll.ListIndexes(ctx)
+	require.NoError(t, err)
+	for _, idx := range indexes {
+		nameAttr, ok := idx.Lookup("name").StringValueOK()
+		assert.True(t, ok)
+		assert.NotEqual(t, "age_idx", nameAttr)
+	}
+}
