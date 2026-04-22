@@ -209,6 +209,24 @@ func (c *Collection[T]) UpsertOne(ctx context.Context, filter Filter, update Upd
 	return c.UpdateOne(ctx, filter, update, WithUpsert(true))
 }
 
+// ReplaceOne replaces a single document matching the filter.
+//
+// See: https://www.mongodb.com/docs/drivers/go/current/fundamentals/crud/write-operations/replace/
+//
+// Example:
+//
+//	result, err := coll.ReplaceOne(ctx,
+//	    gmqb.Eq("name", "Alice"),
+//	    &User{Name: "Alice", Age: 31},
+//	)
+func (c *Collection[T]) ReplaceOne(ctx context.Context, filter Filter, replacement *T, opts ...ReplaceOpt) (*mongo.UpdateResult, error) {
+	if filter.IsEmpty() {
+		return nil, fmt.Errorf("%w: ReplaceOne requires a non-empty filter", ErrEmptyFilter)
+	}
+	replaceOpts := buildReplaceOpts(opts)
+	return c.coll.ReplaceOne(ctx, filter.BsonD(), replacement, replaceOpts)
+}
+
 // DeleteOne deletes a single document matching the filter.
 //
 // See: https://www.mongodb.com/docs/drivers/go/current/fundamentals/crud/write-operations/delete/
@@ -319,9 +337,10 @@ func (c *Collection[T]) FindOneAndReplace(ctx context.Context, filter Filter, re
 //
 // Example:
 //
-//	count, err := coll.CountDocuments(ctx, gmqb.Gte("age", 18))
-func (c *Collection[T]) CountDocuments(ctx context.Context, filter Filter) (int64, error) {
-	return c.coll.CountDocuments(ctx, filter.BsonD())
+//	count, err := coll.CountDocuments(ctx, gmqb.Gte("age", 18), gmqb.WithLimitCount(100))
+func (c *Collection[T]) CountDocuments(ctx context.Context, filter Filter, opts ...CountOpt) (int64, error) {
+	countOpts := buildCountOpts(opts)
+	return c.coll.CountDocuments(ctx, filter.BsonD(), countOpts)
 }
 
 // Distinct returns the distinct values for a specified field.

@@ -497,8 +497,8 @@ func TestIntegration_FindOneAndDelete(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, int64(0), count)
 
-	// Delete non-existent
-	_, err = coll.FindOneAndDelete(ctx, gmqb.Eq("name", "NonExistent"))
+	// Delete non-existent with WithReturnDocumentDelete (operation-specific check)
+	_, err = coll.FindOneAndDelete(ctx, gmqb.Eq("name", "NonExistent"), gmqb.WithReturnDocumentDelete(mongooptions.Before))
 	assert.ErrorIs(t, err, mongo.ErrNoDocuments)
 }
 
@@ -752,4 +752,40 @@ func TestIntegration_IndexManagement(t *testing.T) {
 		assert.True(t, ok)
 		assert.NotEqual(t, "age_idx", nameAttr)
 	}
+}
+
+func TestIntegration_ReplaceOne(t *testing.T) {
+	coll := freshCollection(t)
+	ctx := context.Background()
+	seedUsers(t, coll)
+
+	replacement := &User{Name: "Alice Replaced", Age: 45, Email: "alice-r@example.com", Country: "CA", Active: false}
+	result, err := coll.ReplaceOne(ctx, gmqb.Eq("name", "Alice"), replacement)
+	require.NoError(t, err)
+	assert.Equal(t, int64(1), result.ModifiedCount)
+
+	found, err := coll.FindOne(ctx, gmqb.Eq("name", "Alice Replaced"))
+	require.NoError(t, err)
+	assert.Equal(t, 45, found.Age)
+	assert.Equal(t, "CA", found.Country)
+
+	// Verify old Alice is gone
+	_, err = coll.FindOne(ctx, gmqb.Eq("name", "Alice"))
+	assert.ErrorIs(t, err, mongo.ErrNoDocuments)
+}
+
+func TestIntegration_CountDocuments_WithOptions(t *testing.T) {
+	coll := freshCollection(t)
+	ctx := context.Background()
+	seedUsers(t, coll)
+
+	// Limit count to 1
+	count, err := coll.CountDocuments(ctx, gmqb.Eq("active", true), gmqb.WithLimitCount(1))
+	require.NoError(t, err)
+	assert.Equal(t, int64(1), count)
+
+	// Skip 1 then count
+	count, err = coll.CountDocuments(ctx, gmqb.Eq("active", true), gmqb.WithSkipCount(1))
+	require.NoError(t, err)
+	assert.Equal(t, int64(2), count) // 3 total active, skip 1 = 2
 }

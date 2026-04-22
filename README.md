@@ -251,13 +251,14 @@ user, err := coll.FindOne(ctx, filter)
 res, err := coll.InsertOne(ctx, &user)
 res, err := coll.UpdateOne(ctx, filter, update, gmqb.WithUpsert(true))
 res, err := coll.UpsertOne(ctx, filter, update) // Convenience for WithUpsert(true)
+res, err := coll.ReplaceOne(ctx, filter, &replacement)
 res, err := coll.DeleteMany(ctx, filter)
-count, err := coll.CountDocuments(ctx, filter)
+count, err := coll.CountDocuments(ctx, filter, gmqb.WithLimitCount(100))
 
-// Compound operations
-deletedUser, err := coll.FindOneAndDelete(ctx, filter)
+// Compound operations (Atomic)
+deletedUser, err := coll.FindOneAndDelete(ctx, filter, gmqb.WithReturnDocumentDelete(options.Before))
 updatedUser, err := coll.FindOneAndUpdate(ctx, filter, update, gmqb.WithReturnDocument(options.After))
-replacedUser, err := coll.FindOneAndReplace(ctx, filter, &replacement)
+replacedUser, err := coll.FindOneAndReplace(ctx, filter, &replacement, gmqb.WithReturnDocumentReplace(options.After))
 
 // Bulk operations
 models := []gmqb.WriteModel[User]{

@@ -209,13 +209,17 @@ coll := gmqb.Wrap[User](rawColl)
 // Read
 users, _ := coll.Find(ctx, gmqb.Eq("status", "active"), gmqb.WithLimit(10))
 user, _  := coll.FindOne(ctx, gmqb.Eq("_id", "123"))
+count, _ := coll.CountDocuments(ctx, filter, gmqb.WithLimitCount(100))
 
 // Write
 coll.InsertOne(ctx, &newUser)
 coll.UpdateOne(ctx, gmqb.Eq("_id", "123"), gmqb.NewUpdate().Set("name", "Bob"))
+coll.ReplaceOne(ctx, gmqb.Eq("_id", "123"), &replacementUser)
 
-// Atomic
+// Atomic (FindOneAnd...)
 updated, _ := coll.FindOneAndUpdate(ctx, filter, update, gmqb.WithReturnDocument(options.After))
+deleted, _ := coll.FindOneAndDelete(ctx, filter, gmqb.WithReturnDocumentDelete(options.Before))
+replaced, _ := coll.FindOneAndReplace(ctx, filter, &replacement, gmqb.WithReturnDocumentReplace(options.After))
 
 // Aggregate (returns []R)
 stats, _ := gmqb.Aggregate[UserStats](coll, ctx, pipeline)
@@ -293,10 +297,14 @@ code, _ := generator.Generate(`{"$match": {"status": "A"}}`)
 
 Commonly used options across `Find`, `Update`, `BulkWrite`, etc.
 
-- **Query**: `WithLimit`, `WithSkip`, `WithSort`, `WithProjection`, `WithUpsert`
-- **Update**: `WithArrayFilters`, `WithHint`, `WithCollation`
+- **Query**: `WithLimit`, `WithSkip`, `WithSort`, `WithProjection`
+- **Count**: `WithLimitCount`, `WithSkipCount`
+- **Update/Replace**: `WithUpsert`, `WithUpsertReplace`, `WithCollation`, `WithHint`
 - **Bulk**: `WithOrdered`
-- **Compound**: `WithReturnDocument`, `WithUpsertCompound`
+- **FindOneAndXXX**:
+  - **Delete**: `WithSortFindAndDelete`, `WithProjectionFindAndDelete`, `WithReturnDocumentDelete`
+  - **Update**: `WithSortFindAndUpdate`, `WithReturnDocument`, `WithUpsertFindAndUpdate`
+  - **Replace**: `WithSortFindAndReplace`, `WithReturnDocumentReplace`, `WithUpsertFindAndReplace`
 
 ---
 

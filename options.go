@@ -78,9 +78,44 @@ func WithUpsert(upsert bool) UpdateOpt {
 	}
 }
 
+// WithCollation sets the collation for an update operation.
+func WithCollation(collation *options.Collation) UpdateOpt {
+	return func(o *options.UpdateOneOptionsBuilder) {
+		o.SetCollation(collation)
+	}
+}
+
+// WithHint sets the hint for an update operation.
+func WithHint(hint interface{}) UpdateOpt {
+	return func(o *options.UpdateOneOptionsBuilder) {
+		o.SetHint(hint)
+	}
+}
+
 // buildUpdateOneOpts applies functional options to an UpdateOneOptionsBuilder.
 func buildUpdateOneOpts(opts []UpdateOpt) *options.UpdateOneOptionsBuilder {
 	o := options.UpdateOne()
+	for _, opt := range opts {
+		opt(o)
+	}
+	return o
+}
+
+// --- Replace Options ---
+
+// ReplaceOpt is a functional option for configuring replace operations.
+type ReplaceOpt func(*options.ReplaceOptionsBuilder)
+
+// WithUpsertReplace sets the upsert flag for replace operations.
+func WithUpsertReplace(upsert bool) ReplaceOpt {
+	return func(o *options.ReplaceOptionsBuilder) {
+		o.SetUpsert(upsert)
+	}
+}
+
+// buildReplaceOpts applies functional options to a ReplaceOptionsBuilder.
+func buildReplaceOpts(opts []ReplaceOpt) *options.ReplaceOptionsBuilder {
+	o := options.Replace()
 	for _, opt := range opts {
 		opt(o)
 	}
@@ -136,6 +171,33 @@ func buildBulkWriteOpts(opts []BulkWriteOpt) *options.BulkWriteOptionsBuilder {
 // FindOneAndDeleteOpt is a functional option for configuring FindOneAndDelete operations.
 type FindOneAndDeleteOpt func(*options.FindOneAndDeleteOptionsBuilder)
 
+// WithSortFindAndDelete sets the sort specification for FindOneAndDelete.
+func WithSortFindAndDelete(sort interface{}) FindOneAndDeleteOpt {
+	return func(o *options.FindOneAndDeleteOptionsBuilder) {
+		o.SetSort(sort)
+	}
+}
+
+// WithProjectionFindAndDelete sets the projection for FindOneAndDelete.
+func WithProjectionFindAndDelete(projection interface{}) FindOneAndDeleteOpt {
+	return func(o *options.FindOneAndDeleteOptionsBuilder) {
+		o.SetProjection(projection)
+	}
+}
+
+// WithHintFindAndDelete sets the hint for FindOneAndDelete.
+func WithHintFindAndDelete(hint interface{}) FindOneAndDeleteOpt {
+	return func(o *options.FindOneAndDeleteOptionsBuilder) {
+		o.SetHint(hint)
+	}
+}
+
+// WithReturnDocumentDelete is a no-op for FindOneAndDelete as it always returns
+// the document before deletion. Provided for API parity.
+func WithReturnDocumentDelete(rd options.ReturnDocument) FindOneAndDeleteOpt {
+	return func(o *options.FindOneAndDeleteOptionsBuilder) {}
+}
+
 // buildFindOneAndDeleteOpts applies functional options to a FindOneAndDeleteOptionsBuilder.
 func buildFindOneAndDeleteOpts(opts []FindOneAndDeleteOpt) *options.FindOneAndDeleteOptionsBuilder {
 	o := options.FindOneAndDelete()
@@ -150,6 +212,27 @@ func buildFindOneAndDeleteOpts(opts []FindOneAndDeleteOpt) *options.FindOneAndDe
 // FindOneAndUpdateOpt is a functional option for configuring FindOneAndUpdate operations.
 type FindOneAndUpdateOpt func(*options.FindOneAndUpdateOptionsBuilder)
 
+// WithSortFindAndUpdate sets the sort specification for FindOneAndUpdate.
+func WithSortFindAndUpdate(sort interface{}) FindOneAndUpdateOpt {
+	return func(o *options.FindOneAndUpdateOptionsBuilder) {
+		o.SetSort(sort)
+	}
+}
+
+// WithProjectionFindAndUpdate sets the projection for FindOneAndUpdate.
+func WithProjectionFindAndUpdate(projection interface{}) FindOneAndUpdateOpt {
+	return func(o *options.FindOneAndUpdateOptionsBuilder) {
+		o.SetProjection(projection)
+	}
+}
+
+// WithHintFindAndUpdate sets the hint for FindOneAndUpdate.
+func WithHintFindAndUpdate(hint interface{}) FindOneAndUpdateOpt {
+	return func(o *options.FindOneAndUpdateOptionsBuilder) {
+		o.SetHint(hint)
+	}
+}
+
 // WithReturnDocument specifies whether to return the original or the updated document.
 //
 // Example:
@@ -158,6 +241,13 @@ type FindOneAndUpdateOpt func(*options.FindOneAndUpdateOptionsBuilder)
 func WithReturnDocument(rd options.ReturnDocument) FindOneAndUpdateOpt {
 	return func(o *options.FindOneAndUpdateOptionsBuilder) {
 		o.SetReturnDocument(rd)
+	}
+}
+
+// WithUpsertFindAndUpdate sets the upsert flag for FindOneAndUpdate.
+func WithUpsertFindAndUpdate(upsert bool) FindOneAndUpdateOpt {
+	return func(o *options.FindOneAndUpdateOptionsBuilder) {
+		o.SetUpsert(upsert)
 	}
 }
 
@@ -175,6 +265,27 @@ func buildFindOneAndUpdateOpts(opts []FindOneAndUpdateOpt) *options.FindOneAndUp
 // FindOneAndReplaceOpt is a functional option for configuring FindOneAndReplace operations.
 type FindOneAndReplaceOpt func(*options.FindOneAndReplaceOptionsBuilder)
 
+// WithSortFindAndReplace sets the sort specification for FindOneAndReplace.
+func WithSortFindAndReplace(sort interface{}) FindOneAndReplaceOpt {
+	return func(o *options.FindOneAndReplaceOptionsBuilder) {
+		o.SetSort(sort)
+	}
+}
+
+// WithProjectionFindAndReplace sets the projection for FindOneAndReplace.
+func WithProjectionFindAndReplace(projection interface{}) FindOneAndReplaceOpt {
+	return func(o *options.FindOneAndReplaceOptionsBuilder) {
+		o.SetProjection(projection)
+	}
+}
+
+// WithHintFindAndReplace sets the hint for FindOneAndReplace.
+func WithHintFindAndReplace(hint interface{}) FindOneAndReplaceOpt {
+	return func(o *options.FindOneAndReplaceOptionsBuilder) {
+		o.SetHint(hint)
+	}
+}
+
 // WithReturnDocumentReplace specifies whether to return the original or the replaced document.
 //
 // Example:
@@ -186,6 +297,13 @@ func WithReturnDocumentReplace(rd options.ReturnDocument) FindOneAndReplaceOpt {
 	}
 }
 
+// WithUpsertFindAndReplace sets the upsert flag for FindOneAndReplace.
+func WithUpsertFindAndReplace(upsert bool) FindOneAndReplaceOpt {
+	return func(o *options.FindOneAndReplaceOptionsBuilder) {
+		o.SetUpsert(upsert)
+	}
+}
+
 // buildFindOneAndReplaceOpts applies functional options to a FindOneAndReplaceOptionsBuilder.
 func buildFindOneAndReplaceOpts(opts []FindOneAndReplaceOpt) *options.FindOneAndReplaceOptionsBuilder {
 	o := options.FindOneAndReplace()
@@ -194,3 +312,32 @@ func buildFindOneAndReplaceOpts(opts []FindOneAndReplaceOpt) *options.FindOneAnd
 	}
 	return o
 }
+
+// --- Count Options ---
+
+// CountOpt is a functional option for configuring count operations.
+type CountOpt func(*options.CountOptionsBuilder)
+
+// WithLimitCount sets the maximum number of documents to count.
+func WithLimitCount(n int64) CountOpt {
+	return func(o *options.CountOptionsBuilder) {
+		o.SetLimit(n)
+	}
+}
+
+// WithSkipCount sets the number of documents to skip before counting.
+func WithSkipCount(n int64) CountOpt {
+	return func(o *options.CountOptionsBuilder) {
+		o.SetSkip(n)
+	}
+}
+
+// buildCountOpts applies functional options to a CountOptionsBuilder.
+func buildCountOpts(opts []CountOpt) *options.CountOptionsBuilder {
+	o := options.Count()
+	for _, opt := range opts {
+		opt(o)
+	}
+	return o
+}
+
