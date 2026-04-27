@@ -38,6 +38,7 @@ filter := gmqb.And(
 - **Pipeline stage helpers** — `GroupSpec`, `FillSpec`, `DensifySpec`, `SetWindowFieldsSpec`, etc.
 - **JSON output** — Print any query as JSON for debugging
 - **Functional options** — Clean API for find/update options
+- **Tailable Pub/Sub** — Type-safe event bus using MongoDB capped collections and tailable cursors
 - **Zero sub-packages** — Single `import "github.com/squall-chua/gmqb"`
 
 ## Installation
@@ -370,6 +371,30 @@ indexes, _ := coll.ListIndexes(ctx)
 _ = coll.DropIndex(ctx, "idx_email")
 ```
 
+### Pub/Sub
+
+gmqb provides a type-safe pub/sub mechanism powered by MongoDB capped collections and tailable cursors. This is ideal for lightweight event-driven architectures where a full message broker like RabbitMQ or Kafka is not yet required, and works even on standalone MongoDB deployments (no replica set required).
+
+```go
+// 1. Initialize the bus
+bus, _ := gmqb.NewTailablePubSub[MyEvent](db, "events_topic", gmqb.CappedOpts{
+    SizeBytes: 10 * 1024 * 1024, // 10 MB ring buffer
+})
+
+// 2. Subscribe (returns a channel and a stop function)
+events, stop := bus.Subscribe(ctx)
+defer stop()
+
+go func() {
+    for event := range events {
+        fmt.Printf("Received: %+v\n", event)
+    }
+}()
+
+// 3. Publish
+err := bus.Publish(ctx, MyEvent{ID: "evt_123"})
+```
+
 ### Struct Schema Reflection
 
 You can use the `gmqb.Field[T]` helper to resolve BSON struct tags from your Go models so you don't have to hardcode database field names:
@@ -453,7 +478,7 @@ gmqb-gen -query='{"age": {"$gte": 18}}'
 
 ## Examples
 
-The `examples/` directory contains 17 runnable programs demonstrating every major feature:
+The `examples/` directory contains 18 runnable programs demonstrating every major feature:
 
 | Example | Feature |
 | :--- | :--- |
@@ -474,6 +499,7 @@ The `examples/` directory contains 17 runnable programs demonstrating every majo
 | `15_compound_operations` | Atomic `FindOneAndDelete`, `FindOneAndUpdate`, and `FindOneAndReplace` operations |
 | `16_query_cache_basic` | Basic read-caching using in-memory `go-cache` |
 | `17_query_cache_invalidation` | Auto-invalidation via MongoDB Change Streams |
+| `18_pubsub_tailable` | Type-safe pub/sub via capped collections and tailable cursors |
 
 ## Documentation
 

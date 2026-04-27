@@ -272,7 +272,33 @@ go inv.Watch(ctx)
 
 ---
 
-## 10. Code Generator
+## 10. Pub/Sub
+
+Type-safe pub/sub powered by MongoDB capped collections and tailable cursors.
+
+```go
+// 1. Initialize the bus
+bus, _ := gmqb.NewTailablePubSub[MyEvent](db, "events_topic", gmqb.CappedOpts{
+    SizeBytes: 10 * 1024 * 1024, // 10 MB ring buffer
+})
+
+// 2. Subscribe
+events, stop := bus.Subscribe(ctx)
+defer stop()
+
+go func() {
+    for event := range events {
+        fmt.Printf("Received: %+v\n", event)
+    }
+}()
+
+// 3. Publish
+err := bus.Publish(ctx, MyEvent{ID: "evt_123"})
+```
+
+---
+
+## 11. Code Generator
 
 Convert MongoDB JSON into gmqb Go code.
 
@@ -293,7 +319,7 @@ code, _ := generator.Generate(`{"$match": {"status": "A"}}`)
 
 ---
 
-## 11. Functional Options
+## 12. Functional Options
 
 Commonly used options across `Find`, `Update`, `BulkWrite`, etc.
 
@@ -308,10 +334,11 @@ Commonly used options across `Find`, `Update`, `BulkWrite`, etc.
 
 ---
 
-## Summary Checklist for Assistance
+## 13. Summary Checklist for Assistance
 
 1. **Type-Safety**: Did you use `gmqb.Field[T]`?
 2. **Pipelines**: Is it a `Filter` or a `Pipeline`? Use `Match` in pipelines.
 3. **Updates**: Are you using `UpdateBuilder` for `UpdateOne/Many`?
 4. **Caching**: If caching is enabled, ensure `Watch()` is running for invalidation.
-5. **Generator**: Use `gmqb-gen` to quickly port existing shell queries.
+5. **Pub/Sub**: Use `TailablePubSub` for lightweight event-driven needs.
+6. **Generator**: Use `gmqb-gen` to quickly port existing shell queries.
