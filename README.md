@@ -39,6 +39,7 @@ filter := gmqb.And(
 - **JSON output** — Print any query as JSON for debugging
 - **Functional options** — Clean API for find/update options
 - **Tailable Pub/Sub** — Type-safe event bus using MongoDB capped collections and tailable cursors
+- **Message Queue** — Durable, typed queue with load-balanced/fan-out models, DLQ, and Exacty-Once guarantees
 - **Zero sub-packages** — Single `import "github.com/squall-chua/gmqb"`
 
 ## Installation
@@ -395,6 +396,82 @@ go func() {
 err := bus.Publish(ctx, MyEvent{ID: "evt_123"})
 ```
 
+### Message Queue
+
+gmqb provides a robust, durable, and type-safe message queue built on top of MongoDB. It supports both load-balanced and fan-out worker models, and offers configurable delivery guarantees (At-Most-Once, At-Least-Once, Exactly-Once).
+
+#### 1. Initialize the Queue
+
+```go
+q, err := gmqb.NewQueue[MyMessage](db, "email_tasks",
+    gmqb.WithMaxAttempts(3),
+    gmqb.WithRetentionTTL(7 * 24 * time.Hour),
+)
+```
+
+#### 2. Enqueue Messages
+
+```go
+// Enqueue a standard message
+id, err := q.Enqueue(ctx, MyMessage{To: "user@example.com"})
+
+// Enqueue with idempotency (prevents duplicate enqueues)
+id, err := q.Enqueue(ctx, msg, 
+    gmqb.WithID(customID),
+    gmqb.WithIdempotent(true),
+)
+```
+
+#### 3. Process Messages
+
+Workers use a pull-based model that instantly wakes up via internal signaling or Change Streams when new messages arrive.
+
+**Load-Balanced Model (Competing Consumers)**
+Multiple workers pull from the same queue. Each message is processed by exactly one worker.
+
+```go
+worker := q.NewWorker(gmqb.WorkerConfig{
+    VisibilityTimeout: 2 * time.Minute,
+    Concurrency:       5,
+    Guarantee:         gmqb.AtLeastOnce,
+})
+
+worker.Start(ctx, func(ctx context.Context, msg gmqb.Message[MyMessage]) error {
+    fmt.Printf("Processing %v\n", msg.Payload)
+    return nil // return error to nack and retry
+})
+```
+
+**Fan-Out Model (Consumer Groups)**
+Multiple services need to process the *same* message. Each service uses a unique `ConsumerGroup`.
+
+```go
+worker := q.NewWorker(gmqb.WorkerConfig{
+    ConsumerGroup:     "audit_service", // <--- Enables Fan-Out
+    VisibilityTimeout: 2 * time.Minute,
+    Guarantee:         gmqb.AtLeastOnce,
+})
+```
+
+#### 4. Delivery Guarantees & DLQ
+
+You can configure the worker's `Guarantee` setting:
+- `gmqb.AtMostOnce`: Message is marked done before processing. If worker crashes, it's lost.
+- `gmqb.AtLeastOnce`: Message is marked done after processing. If worker crashes, it's retried after the visibility timeout.
+- `gmqb.ExactlyOnce`: Like At-Least-Once, but uses a separate deduplication collection to guarantee the handler succeeds only once.
+
+Messages that fail `MaxAttempts` are automatically moved to a Dead-Letter Queue (DLQ).
+
+```go
+dlq := q.DLQ()
+messages, _ := dlq.List(ctx, 10, 0) // limit, offset
+
+for _, m := range messages {
+    fmt.Printf("Failed: %v, Error: %v\n", m.ID, m.FailedGroup)
+    dlq.Requeue(ctx, m.ID) // Sends back to primary queue/group
+}
+```
+
 ### Struct Schema Reflection
 
 You can use the `gmqb.Field[T]` helper to resolve BSON struct tags from your Go models so you don't have to hardcode database field names:
@@ -500,6 +577,7 @@ The `examples/` directory contains 18 runnable programs demonstrating every majo
 | `16_query_cache_basic` | Basic read-caching using in-memory `go-cache` |
 | `17_query_cache_invalidation` | Auto-invalidation via MongoDB Change Streams |
 | `18_pubsub_tailable` | Type-safe pub/sub via capped collections and tailable cursors |
+| `19_message_queue` | Durable message queue, load-balancing, fan-out, DLQ, and exacty-once delivery |
 
 ## Documentation
 

@@ -298,7 +298,38 @@ err := bus.Publish(ctx, MyEvent{ID: "evt_123"})
 
 ---
 
-## 11. Code Generator
+## 11. Message Queue
+
+Durable message queue built on MongoDB with load-balancing, fan-out, DLQ, and delivery guarantees.
+
+```go
+// 1. Initialize
+q, _ := gmqb.NewQueue[MyMessage](db, "email_tasks", gmqb.WithMaxAttempts(3))
+
+// 2. Enqueue (with idempotency)
+q.Enqueue(ctx, MyMessage{To: "user@example.com"}, 
+    gmqb.WithID(customID), gmqb.WithIdempotent(true))
+
+// 3. Process
+worker := q.NewWorker(gmqb.WorkerConfig{
+    ConsumerGroup:     "audit_service", // Enables Fan-Out if not empty
+    VisibilityTimeout: 2 * time.Minute,
+    Guarantee:         gmqb.ExactlyOnce, // AtMostOnce, AtLeastOnce, ExactlyOnce
+})
+
+worker.Start(ctx, func(ctx context.Context, msg gmqb.Message[MyMessage]) error {
+    return nil // return err to nack
+})
+
+// 4. DLQ Management
+dlq := q.DLQ()
+messages, _ := dlq.List(ctx, 10, 0)
+dlq.Requeue(ctx, messages[0].ID)
+```
+
+---
+
+## 12. Code Generator
 
 Convert MongoDB JSON into gmqb Go code.
 
@@ -319,7 +350,7 @@ code, _ := generator.Generate(`{"$match": {"status": "A"}}`)
 
 ---
 
-## 12. Functional Options
+## 13. Functional Options
 
 Commonly used options across `Find`, `Update`, `BulkWrite`, etc.
 
@@ -334,11 +365,13 @@ Commonly used options across `Find`, `Update`, `BulkWrite`, etc.
 
 ---
 
-## 13. Summary Checklist for Assistance
+## 14. Summary Checklist for Assistance
 
 1. **Type-Safety**: Did you use `gmqb.Field[T]`?
 2. **Pipelines**: Is it a `Filter` or a `Pipeline`? Use `Match` in pipelines.
 3. **Updates**: Are you using `UpdateBuilder` for `UpdateOne/Many`?
 4. **Caching**: If caching is enabled, ensure `Watch()` is running for invalidation.
 5. **Pub/Sub**: Use `TailablePubSub` for lightweight event-driven needs.
-6. **Generator**: Use `gmqb-gen` to quickly port existing shell queries.
+6. **Message Queue**: Use `Queue[T]` for durable background processing with delivery guarantees.
+7. **Generator**: Use `gmqb-gen` to quickly port existing shell queries.
+
