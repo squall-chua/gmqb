@@ -1,17 +1,35 @@
-package gmqb_test
+package mq_test
 
 import (
 	"context"
 	"testing"
 	"time"
 
-	"github.com/squall-chua/gmqb"
+	"github.com/squall-chua/gmqb/mq"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/tryvium-travels/memongo"
 	"go.mongodb.org/mongo-driver/v2/bson"
+	"go.mongodb.org/mongo-driver/v2/mongo"
+	mongooptions "go.mongodb.org/mongo-driver/v2/mongo/options"
 )
 
-// startStandalone is provided by pubsub_test.go in the same gmqb_test package.
+func startStandalone(t *testing.T) (*mongo.Database, *mongo.Client) {
+	t.Helper()
+
+	srv, err := memongo.StartWithOptions(&memongo.Options{
+		MongoVersion: "8.2.5",
+	})
+	require.NoError(t, err)
+	t.Cleanup(srv.Stop)
+
+	client, err := mongo.Connect(mongooptions.Client().ApplyURI(srv.URI()))
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = client.Disconnect(context.Background()) })
+
+	dbName := memongo.RandomDatabase()
+	return client.Database(dbName), client
+}
 
 func TestQueue_Enqueue(t *testing.T) {
 	db, _ := startStandalone(t)
@@ -21,7 +39,7 @@ func TestQueue_Enqueue(t *testing.T) {
 		Name string `bson:"name"`
 	}
 
-	q, err := gmqb.NewQueue[Job](db, "test_queue", gmqb.DefaultQueueOpts)
+	q, err := mq.NewQueue[Job](db, "test_queue", mq.DefaultQueueOpts)
 	require.NoError(t, err)
 
 	err = q.EnsureIndexes(ctx)
@@ -49,7 +67,7 @@ func TestDLQ_Purge(t *testing.T) {
 		ID int `bson:"id"`
 	}
 
-	q, err := gmqb.NewQueue[Job](db, "dlq_test", gmqb.DefaultQueueOpts)
+	q, err := mq.NewQueue[Job](db, "dlq_test", mq.DefaultQueueOpts)
 	require.NoError(t, err)
 
 	// Manually insert into DLQ
@@ -80,24 +98,24 @@ func TestQueue_Enqueue_Idempotency(t *testing.T) {
 		X int `bson:"x"`
 	}
 
-	q, err := gmqb.NewQueue[Job](db, "idempotency_test", gmqb.DefaultQueueOpts)
+	q, err := mq.NewQueue[Job](db, "idempotency_test", mq.DefaultQueueOpts)
 	require.NoError(t, err)
 	_ = q.EnsureIndexes(ctx)
 
 	id := bson.NewObjectID()
 
 	// First enqueue
-	id1, err := q.Enqueue(ctx, Job{X: 1}, gmqb.WithID(id), gmqb.WithIdempotent())
+	id1, err := q.Enqueue(ctx, Job{X: 1}, mq.WithID(id), mq.WithIdempotent())
 	require.NoError(t, err)
 	assert.Equal(t, id, id1)
 
 	// Second enqueue with same ID (should succeed idempotently)
-	id2, err := q.Enqueue(ctx, Job{X: 1}, gmqb.WithID(id), gmqb.WithIdempotent())
+	id2, err := q.Enqueue(ctx, Job{X: 1}, mq.WithID(id), mq.WithIdempotent())
 	require.NoError(t, err)
 	assert.Equal(t, id, id2)
 
 	// Third enqueue with same ID but WITHOUT WithIdempotent (should fail)
-	_, err = q.Enqueue(ctx, Job{X: 1}, gmqb.WithID(id))
+	_, err = q.Enqueue(ctx, Job{X: 1}, mq.WithID(id))
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "duplicate key")
 }

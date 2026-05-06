@@ -6,7 +6,7 @@ import (
 	"log"
 	"time"
 
-	"github.com/squall-chua/gmqb"
+	"github.com/squall-chua/gmqb/pubsub"
 	"github.com/tryvium-travels/memongo"
 	"go.mongodb.org/mongo-driver/v2/mongo"
 	"go.mongodb.org/mongo-driver/v2/mongo/options"
@@ -37,13 +37,13 @@ func main() {
 	}
 	defer func() { _ = client.Disconnect(context.Background()) }()
 
-	db := client.Database("gmqb_examples")
+	db := client.Database("pubsub_examples")
 	ctx := context.Background()
 
 	// 2. Initialize the TailablePubSub bus for OrderEvent.
 	// This idempotently creates a capped collection named "order_topic".
 	// Capped collections are perfect for high-speed, durable event streams.
-	bus, err := gmqb.NewTailablePubSub[OrderEvent](db, "order_topic", gmqb.CappedOpts{
+	bus, err := pubsub.NewTailablePubSub[OrderEvent](db, "order_topic", pubsub.CappedOpts{
 		SizeBytes: 10 * 1024 * 1024, // 10 MB ring buffer
 		MaxDocs:   5000,             // limit to 5000 events
 	})

@@ -1,4 +1,4 @@
-package gmqb
+package pubsub
 
 import (
 	"context"

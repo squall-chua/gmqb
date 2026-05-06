@@ -38,9 +38,8 @@ filter := gmqb.And(
 - **Pipeline stage helpers** — `GroupSpec`, `FillSpec`, `DensifySpec`, `SetWindowFieldsSpec`, etc.
 - **JSON output** — Print any query as JSON for debugging
 - **Functional options** — Clean API for find/update options
-- **Tailable Pub/Sub** — Type-safe event bus using MongoDB capped collections and tailable cursors
-- **Message Queue** — Durable, typed queue with load-balanced/fan-out models, DLQ, and Exacty-Once guarantees
-- **Zero sub-packages** — Single `import "github.com/squall-chua/gmqb"`
+- **Modular architecture** — Sub-packages for specialized features (`pubsub`, `mq`, `generator`)
+- **Zero-dependency Core** — The core query builder only depends on the official MongoDB driver
 
 ## Installation
 
@@ -372,17 +371,20 @@ indexes, _ := coll.ListIndexes(ctx)
 _ = coll.DropIndex(ctx, "idx_email")
 ```
 
-### Pub/Sub
+### Pub/Sub (`pubsub` package)
 
 gmqb provides a type-safe pub/sub mechanism powered by MongoDB capped collections and tailable cursors. This is ideal for lightweight event-driven architectures where a full message broker like RabbitMQ or Kafka is not yet required, and works even on standalone MongoDB deployments (no replica set required).
 
 ```go
+import "github.com/squall-chua/gmqb/pubsub"
+
 // 1. Initialize the bus
-bus, _ := gmqb.NewTailablePubSub[MyEvent](db, "events_topic", gmqb.CappedOpts{
-    SizeBytes: 10 * 1024 * 1024, // 10 MB ring buffer
-})
+bus, _ := pubsub.NewTailablePubSub[MyEvent](db, "events_topic", pubsub.DefaultCappedOpts)
 
 // 2. Subscribe (returns a channel and a stop function)
+ctx, cancel := context.WithCancel(context.Background())
+defer cancel()
+
 events, stop := bus.Subscribe(ctx)
 defer stop()
 
@@ -396,17 +398,20 @@ go func() {
 err := bus.Publish(ctx, MyEvent{ID: "evt_123"})
 ```
 
-### Message Queue
+### Message Queue (`mq` package)
 
 gmqb provides a robust, durable, and type-safe message queue built on top of MongoDB. It supports both load-balanced and fan-out worker models, and offers configurable delivery guarantees (At-Most-Once, At-Least-Once, Exactly-Once).
 
 #### 1. Initialize the Queue
 
 ```go
-q, err := gmqb.NewQueue[MyMessage](db, "email_tasks",
-    gmqb.WithMaxAttempts(3),
-    gmqb.WithRetentionTTL(7 * 24 * time.Hour),
-)
+import "github.com/squall-chua/gmqb/mq"
+
+q, err := mq.NewQueue[MyMessage](db, "email_tasks", mq.QueueOpts{
+    MaxAttempts:       3,
+    VisibilityTimeout: 30 * time.Second,
+    RetentionTTL:      7 * 24 * time.Hour,
+})
 ```
 
 #### 2. Enqueue Messages
@@ -417,8 +422,8 @@ id, err := q.Enqueue(ctx, MyMessage{To: "user@example.com"})
 
 // Enqueue with idempotency (prevents duplicate enqueues)
 id, err := q.Enqueue(ctx, msg, 
-    gmqb.WithID(customID),
-    gmqb.WithIdempotent(true),
+    mq.WithID(customID),
+    mq.WithIdempotent(),
 )
 ```
 
@@ -430,35 +435,36 @@ Workers use a pull-based model that instantly wakes up via internal signaling or
 Multiple workers pull from the same queue. Each message is processed by exactly one worker.
 
 ```go
-worker := q.NewWorker(gmqb.WorkerConfig{
-    VisibilityTimeout: 2 * time.Minute,
-    Concurrency:       5,
-    Guarantee:         gmqb.AtLeastOnce,
-})
-
-worker.Start(ctx, func(ctx context.Context, msg gmqb.Message[MyMessage]) error {
-    fmt.Printf("Processing %v\n", msg.Payload)
+handler := func(ctx context.Context, msg MyMessage) error {
+    fmt.Printf("Processing %v\n", msg)
     return nil // return error to nack and retry
-})
+}
+
+worker := mq.NewWorker(q, handler, 
+    mq.WithConcurrency(5),
+    mq.WithDelivery(mq.AtLeastOnce),
+)
+
+worker.Run(ctx)
 ```
 
 **Fan-Out Model (Consumer Groups)**
 Multiple services need to process the *same* message. Each service uses a unique `ConsumerGroup`.
 
 ```go
-worker := q.NewWorker(gmqb.WorkerConfig{
-    ConsumerGroup:     "audit_service", // <--- Enables Fan-Out
-    VisibilityTimeout: 2 * time.Minute,
-    Guarantee:         gmqb.AtLeastOnce,
-})
+worker := mq.NewWorker(q, handler,
+    mq.WithConsumerGroup("audit_service"), // <--- Enables Fan-Out
+    mq.WithDelivery(mq.AtLeastOnce),
+)
 ```
 
 #### 4. Delivery Guarantees & DLQ
 
-You can configure the worker's `Guarantee` setting:
-- `gmqb.AtMostOnce`: Message is marked done before processing. If worker crashes, it's lost.
-- `gmqb.AtLeastOnce`: Message is marked done after processing. If worker crashes, it's retried after the visibility timeout.
-- `gmqb.ExactlyOnce`: Like At-Least-Once, but uses a separate deduplication collection to guarantee the handler succeeds only once.
+You can configure the worker's delivery guarantee:
+
+- `mq.AtMostOnce`: Message is marked done before processing. If worker crashes, it's lost.
+- `mq.AtLeastOnce`: Message is marked done after processing. If worker crashes, it's retried after the visibility timeout.
+- `mq.ExactlyOnce`: Like At-Least-Once, but uses a separate deduplication collection to guarantee the handler succeeds only once per group.
 
 Messages that fail `MaxAttempts` are automatically moved to a Dead-Letter Queue (DLQ).
 
@@ -467,7 +473,7 @@ dlq := q.DLQ()
 messages, _ := dlq.List(ctx, 10, 0) // limit, offset
 
 for _, m := range messages {
-    fmt.Printf("Failed: %v, Error: %v\n", m.ID, m.FailedGroup)
+    fmt.Printf("Failed: %v\n", m.ID)
     dlq.Requeue(ctx, m.ID) // Sends back to primary queue/group
 }
 ```

@@ -1,4 +1,4 @@
-package gmqb
+package mq
 
 import (
 	"context"

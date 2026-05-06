@@ -1,4 +1,4 @@
-package gmqb_test
+package pubsub_test
 
 import (
 	"context"
@@ -6,13 +6,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/squall-chua/gmqb/pubsub"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/tryvium-travels/memongo"
 	"go.mongodb.org/mongo-driver/v2/mongo"
 	mongooptions "go.mongodb.org/mongo-driver/v2/mongo/options"
-
-	"github.com/squall-chua/gmqb"
 )
 
 type MyEvent struct {
@@ -43,7 +42,7 @@ func TestTailablePubSub_PublishSubscribe(t *testing.T) {
 	defer cancel()
 
 	topic := "test_topic"
-	bus, err := gmqb.NewTailablePubSub[MyEvent](db, topic, gmqb.DefaultCappedOpts)
+	bus, err := pubsub.NewTailablePubSub[MyEvent](db, topic, pubsub.DefaultCappedOpts)
 	require.NoError(t, err)
 
 	ch, subCancel := bus.Subscribe(ctx)
@@ -70,7 +69,7 @@ func TestTailablePubSub_MultipleSubscribers(t *testing.T) {
 	defer cancel()
 
 	topic := "multi_topic"
-	bus, err := gmqb.NewTailablePubSub[MyEvent](db, topic, gmqb.DefaultCappedOpts)
+	bus, err := pubsub.NewTailablePubSub[MyEvent](db, topic, pubsub.DefaultCappedOpts)
 	require.NoError(t, err)
 
 	ch1, cancel1 := bus.Subscribe(ctx)
@@ -105,7 +104,7 @@ func TestTailablePubSub_CancelStopsSubscriber(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	bus, _ := gmqb.NewTailablePubSub[MyEvent](db, "cancel_topic", gmqb.DefaultCappedOpts)
+	bus, _ := pubsub.NewTailablePubSub[MyEvent](db, "cancel_topic", pubsub.DefaultCappedOpts)
 	ch, subCancel := bus.Subscribe(ctx)
 
 	subCancel()
@@ -124,7 +123,7 @@ func TestTailablePubSub_LargeBurst(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	bus, _ := gmqb.NewTailablePubSub[MyEvent](db, "burst_topic", gmqb.CappedOpts{SizeBytes: 1024 * 1024})
+	bus, _ := pubsub.NewTailablePubSub[MyEvent](db, "burst_topic", pubsub.CappedOpts{SizeBytes: 1024 * 1024})
 	ch, subCancel := bus.Subscribe(ctx)
 	defer subCancel()
 
@@ -152,11 +151,11 @@ func TestTailablePubSub_IdempotentCreation(t *testing.T) {
 	topic := "idempotent_topic"
 
 	// First creation
-	_, err := gmqb.NewTailablePubSub[MyEvent](db, topic, gmqb.DefaultCappedOpts)
+	_, err := pubsub.NewTailablePubSub[MyEvent](db, topic, pubsub.DefaultCappedOpts)
 	require.NoError(t, err)
 
 	// Second creation should not fail even if it already exists
-	_, err = gmqb.NewTailablePubSub[MyEvent](db, topic, gmqb.DefaultCappedOpts)
+	_, err = pubsub.NewTailablePubSub[MyEvent](db, topic, pubsub.DefaultCappedOpts)
 	require.NoError(t, err, "second creation should be idempotent")
 }
 
@@ -166,7 +165,7 @@ func TestTailablePubSub_ReconnectAfterCursorDeath(t *testing.T) {
 	defer cancel()
 
 	topic := "reconnect_topic"
-	bus, err := gmqb.NewTailablePubSub[MyEvent](db, topic, gmqb.DefaultCappedOpts)
+	bus, err := pubsub.NewTailablePubSub[MyEvent](db, topic, pubsub.DefaultCappedOpts)
 	require.NoError(t, err)
 
 	ch, subCancel := bus.Subscribe(ctx)
@@ -188,7 +187,7 @@ func TestTailablePubSub_ReconnectAfterCursorDeath(t *testing.T) {
 	require.NoError(t, err)
 
 	// 3. Re-create the collection (simulated by NewTailablePubSub)
-	_, err = gmqb.NewTailablePubSub[MyEvent](db, topic, gmqb.DefaultCappedOpts)
+	_, err = pubsub.NewTailablePubSub[MyEvent](db, topic, pubsub.DefaultCappedOpts)
 	require.NoError(t, err)
 
 	// 4. Publish second event — it should be picked up after reconnect
@@ -215,7 +214,7 @@ func ExampleTailablePubSub() {
 
 	// Assuming 'db' is a *mongo.Database
 	var db *mongo.Database
-	bus, _ := gmqb.NewTailablePubSub[UserEvent](db, "user_events", gmqb.DefaultCappedOpts)
+	bus, _ := pubsub.NewTailablePubSub[UserEvent](db, "user_events", pubsub.DefaultCappedOpts)
 
 	// 2. Subscribe to events.
 	ctx, cancel := context.WithCancel(context.Background())

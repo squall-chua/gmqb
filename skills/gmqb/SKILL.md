@@ -272,17 +272,20 @@ go inv.Watch(ctx)
 
 ---
 
-## 10. Pub/Sub
+## 10. Pub/Sub (`pubsub` package)
 
 Type-safe pub/sub powered by MongoDB capped collections and tailable cursors.
 
 ```go
+import "github.com/squall-chua/gmqb/pubsub"
+
 // 1. Initialize the bus
-bus, _ := gmqb.NewTailablePubSub[MyEvent](db, "events_topic", gmqb.CappedOpts{
-    SizeBytes: 10 * 1024 * 1024, // 10 MB ring buffer
-})
+bus, _ := pubsub.NewTailablePubSub[MyEvent](db, "events_topic", pubsub.DefaultCappedOpts)
 
 // 2. Subscribe
+ctx, cancel := context.WithCancel(context.Background())
+defer cancel()
+
 events, stop := bus.Subscribe(ctx)
 defer stop()
 
@@ -298,28 +301,33 @@ err := bus.Publish(ctx, MyEvent{ID: "evt_123"})
 
 ---
 
-## 11. Message Queue
+## 11. Message Queue (`mq` package)
 
 Durable message queue built on MongoDB with load-balancing, fan-out, DLQ, and delivery guarantees.
 
 ```go
+import "github.com/squall-chua/gmqb/mq"
+
 // 1. Initialize
-q, _ := gmqb.NewQueue[MyMessage](db, "email_tasks", gmqb.WithMaxAttempts(3))
+q, _ := mq.NewQueue[MyMessage](db, "email_tasks", mq.QueueOpts{
+    MaxAttempts: 3,
+})
 
 // 2. Enqueue (with idempotency)
 q.Enqueue(ctx, MyMessage{To: "user@example.com"}, 
-    gmqb.WithID(customID), gmqb.WithIdempotent(true))
+    mq.WithID(customID), mq.WithIdempotent())
 
 // 3. Process
-worker := q.NewWorker(gmqb.WorkerConfig{
-    ConsumerGroup:     "audit_service", // Enables Fan-Out if not empty
-    VisibilityTimeout: 2 * time.Minute,
-    Guarantee:         gmqb.ExactlyOnce, // AtMostOnce, AtLeastOnce, ExactlyOnce
-})
-
-worker.Start(ctx, func(ctx context.Context, msg gmqb.Message[MyMessage]) error {
+handler := func(ctx context.Context, msg MyMessage) error {
     return nil // return err to nack
-})
+}
+
+worker := mq.NewWorker(q, handler,
+    mq.WithConsumerGroup("audit_service"), // Enables Fan-Out if not empty
+    mq.WithDelivery(mq.ExactlyOnce),       // AtMostOnce, AtLeastOnce, ExactlyOnce
+)
+
+worker.Run(ctx)
 
 // 4. DLQ Management
 dlq := q.DLQ()
@@ -374,4 +382,3 @@ Commonly used options across `Find`, `Update`, `BulkWrite`, etc.
 5. **Pub/Sub**: Use `TailablePubSub` for lightweight event-driven needs.
 6. **Message Queue**: Use `Queue[T]` for durable background processing with delivery guarantees.
 7. **Generator**: Use `gmqb-gen` to quickly port existing shell queries.
-

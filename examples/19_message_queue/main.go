@@ -8,7 +8,7 @@ import (
 	"os/signal"
 	"time"
 
-	"github.com/squall-chua/gmqb"
+	"github.com/squall-chua/gmqb/mq"
 	"github.com/tryvium-travels/memongo"
 	"go.mongodb.org/mongo-driver/v2/mongo"
 	"go.mongodb.org/mongo-driver/v2/mongo/options"
@@ -45,7 +45,7 @@ func main() {
 
 	// 3. Initialize Queue
 	// We enable DLQ and set max retries to 3.
-	q, err := gmqb.NewQueue[EmailJob](db, "emails", gmqb.QueueOpts{
+	q, err := mq.NewQueue[EmailJob](db, "emails", mq.QueueOpts{
 		MaxAttempts:       3,
 		VisibilityTimeout: 30 * time.Second,
 		DLQEnabled:        true,
@@ -60,12 +60,12 @@ func main() {
 	}
 
 	// 5. Start a Worker (Consumer Group A)
-	worker := gmqb.NewWorker(q, func(ctx context.Context, job EmailJob) error {
+	worker := mq.NewWorker(q, func(ctx context.Context, job EmailJob) error {
 		fmt.Printf("Worker A: Sending email to %s: %s\n", job.To, job.Subject)
 		// Simulate work
 		time.Sleep(100 * time.Millisecond)
 		return nil
-	}, gmqb.WithConcurrency(2), gmqb.WithConsumerGroup("processor-a"))
+	}, mq.WithConcurrency(2), mq.WithConsumerGroup("processor-a"))
 
 	go func() {
 		if err := worker.Run(ctx); err != nil {

@@ -1,4 +1,4 @@
-package gmqb_test
+package mq_test
 
 import (
 	"context"
@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/squall-chua/gmqb"
+	"github.com/squall-chua/gmqb/mq"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -21,7 +21,7 @@ func TestQueue_Integration_LoadBalancing(t *testing.T) {
 		ID int `bson:"id"`
 	}
 
-	q, _ := gmqb.NewQueue[Job](db, "lb_test", gmqb.DefaultQueueOpts)
+	q, _ := mq.NewQueue[Job](db, "lb_test", mq.DefaultQueueOpts)
 	_ = q.EnsureIndexes(ctx)
 
 	var processed int32
@@ -30,8 +30,8 @@ func TestQueue_Integration_LoadBalancing(t *testing.T) {
 		return nil
 	}
 
-	w1 := gmqb.NewWorker(q, handler, gmqb.WithConcurrency(2))
-	w2 := gmqb.NewWorker(q, handler, gmqb.WithConcurrency(2))
+	w1 := mq.NewWorker(q, handler, mq.WithConcurrency(2))
+	w2 := mq.NewWorker(q, handler, mq.WithConcurrency(2))
 
 	go w1.Run(ctx)
 	go w2.Run(ctx)
@@ -55,19 +55,19 @@ func TestQueue_Integration_FanOut(t *testing.T) {
 		Text string `bson:"text"`
 	}
 
-	q, _ := gmqb.NewQueue[Msg](db, "fanout_test", gmqb.DefaultQueueOpts)
+	q, _ := mq.NewQueue[Msg](db, "fanout_test", mq.DefaultQueueOpts)
 	_ = q.EnsureIndexes(ctx)
 
 	var countA, countB int32
-	wA := gmqb.NewWorker(q, func(ctx context.Context, m Msg) error {
+	wA := mq.NewWorker(q, func(ctx context.Context, m Msg) error {
 		atomic.AddInt32(&countA, 1)
 		return nil
-	}, gmqb.WithConsumerGroup("groupA"))
+	}, mq.WithConsumerGroup("groupA"))
 
-	wB := gmqb.NewWorker(q, func(ctx context.Context, m Msg) error {
+	wB := mq.NewWorker(q, func(ctx context.Context, m Msg) error {
 		atomic.AddInt32(&countB, 1)
 		return nil
-	}, gmqb.WithConsumerGroup("groupB"))
+	}, mq.WithConsumerGroup("groupB"))
 
 	go wA.Run(ctx)
 	go wB.Run(ctx)
@@ -89,18 +89,18 @@ func TestQueue_Integration_DLQ(t *testing.T) {
 		X int `bson:"x"`
 	}
 
-	opts := gmqb.DefaultQueueOpts
+	opts := mq.DefaultQueueOpts
 	opts.MaxAttempts = 2
 	opts.VisibilityTimeout = 100 * time.Millisecond
 
-	q, _ := gmqb.NewQueue[Job](db, "dlq_integ", opts)
+	q, _ := mq.NewQueue[Job](db, "dlq_integ", opts)
 	_ = q.EnsureIndexes(ctx)
 
 	handler := func(ctx context.Context, payload Job) error {
 		return assert.AnError // Always fail
 	}
 
-	w := gmqb.NewWorker(q, handler)
+	w := mq.NewWorker(q, handler)
 	go w.Run(ctx)
 
 	_, _ = q.Enqueue(ctx, Job{X: 42})
@@ -122,7 +122,7 @@ func TestQueue_Integration_ExactlyOnce(t *testing.T) {
 		Key string `bson:"key"`
 	}
 
-	q, _ := gmqb.NewQueue[Job](db, "exactly_once_test", gmqb.DefaultQueueOpts)
+	q, _ := mq.NewQueue[Job](db, "exactly_once_test", mq.DefaultQueueOpts)
 	_ = q.EnsureIndexes(ctx)
 
 	var processed int32
@@ -131,8 +131,8 @@ func TestQueue_Integration_ExactlyOnce(t *testing.T) {
 		return nil
 	}
 
-	w1 := gmqb.NewWorker(q, handler, gmqb.WithDelivery(gmqb.ExactlyOnce), gmqb.WithConsumerGroup("G1"))
-	w2 := gmqb.NewWorker(q, handler, gmqb.WithDelivery(gmqb.ExactlyOnce), gmqb.WithConsumerGroup("G1"))
+	w1 := mq.NewWorker(q, handler, mq.WithDelivery(mq.ExactlyOnce), mq.WithConsumerGroup("G1"))
+	w2 := mq.NewWorker(q, handler, mq.WithDelivery(mq.ExactlyOnce), mq.WithConsumerGroup("G1"))
 
 	// Manual enqueue to simulate same message ID if we were doing something tricky,
 	// but normally Enqueue creates new ID.
