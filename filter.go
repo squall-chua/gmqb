@@ -51,6 +51,9 @@ func (f Filter) append(e bson.E) Filter {
 //	filter := gmqb.Eq("name", "Alice")
 //	cursor, err := coll.Find(ctx, filter.BsonD())
 func (f Filter) BsonD() bson.D {
+	if f.d == nil {
+		return bson.D{}
+	}
 	return f.d
 }
 

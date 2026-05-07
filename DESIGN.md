@@ -21,6 +21,12 @@ graph TB
         CH["cache.go<br/>Transparent Query Cache"]
         INV["cache_invalidator.go<br/>Change Stream Invalidation"]
     end
+    subgraph "Sub-Packages"
+        REST["rest/<br/>REST CRUD API Handler"]
+        PS["pubsub/<br/>Tailable Capped Pub/Sub"]
+        MQ["mq/<br/>Durable Message Queue"]
+        GEN["generator/<br/>MQL to Go Translator"]
+    end
     subgraph "External"
         GC["eko/gocache"]
     end
@@ -40,11 +46,13 @@ graph TB
     CH --> GC
     B --> C & CH
     INV --> MC & GC
+    C --> REST & PS & MQ
+    REST & PS & MQ --> MC
 ```
 
 ## Package Structure
 
-```
+```text
 gmqb/
 ├── README.md
 ├── DESIGN.md
@@ -63,6 +71,12 @@ gmqb/
 ├── serialize.go           # BSON/JSON serialization helpers
 ├── options.go             # FindOptions, UpdateOptions wrappers
 ├── errors.go              # Custom error types
+│
+├── rest/                  # Framework-agnostic REST CRUD API sub-package
+├── pubsub/                # Type-safe Tailable Capped Collection Pub/Sub
+├── mq/                    # Durable Message Queue with delivery guarantees
+├── generator/             # CLI + API for converting raw JSON to gmqb code
+├── cmd/gmqb-gen/          # Code generator binary
 │
 ├── *_test.go              # Unit tests + caching tests
 ├── integration_test.go    # Integration tests (memongo)
@@ -84,7 +98,10 @@ gmqb/
     ├── 14_bulk_write/         # WriteModel API
     ├── 15_compound_operations/# Atomic find-and-modify
     ├── 16_query_cache_basic/  # Basic in-memory caching
-    └── 17_query_cache_invalidation/ # Change stream auto-invalidation
+    ├── 17_query_cache_invalidation/ # Change stream auto-invalidation
+    ├── 18_pubsub_tailable/    # Tailable Pub/Sub example
+    ├── 19_message_queue/      # Durable Message Queue example
+    └── 20_rest_api/           # REST CRUD API example
 ```
 
 ## Design Philosophy
@@ -143,6 +160,7 @@ gmqb.Polygon([][2]float64{{0, 0}, {3, 6}, {6, 1}, {0, 0}})
 ### Fail-Fast Errors
 
 `Field[T]()` **panics** on invalid field paths rather than returning errors. Rationale:
+
 - Field resolution is a programming error (typo), not a runtime condition
 - Panics at startup are more informative than silent wrong queries at runtime
 - This matches the convention of `regexp.MustCompile`, `template.Must`, etc.
@@ -168,7 +186,7 @@ For replica-set or Atlas deployments, `ChangeStreamInvalidator` provides near re
 ## Core Types
 
 | Type | Role | Pattern |
-|------|------|---------|
+| :--- | :--- | :--- |
 | `Filter` | Query predicates | Value type wrapping `bson.D`. Standalone constructors and chainable methods. |
 | `Updater` | Update documents | Value type with immutable method chaining (copy-on-write). |
 | `Pipeline` | Aggregation pipelines | Value type with immutable method chaining (copy-on-write). |
@@ -211,7 +229,7 @@ This ensures the original builder is never modified.
 
 ## Serialization Pipeline
 
-```
+```text
 Builder.BsonD() → bson.D → mongo-driver (Find, Update, Aggregate)
 Builder.JSON()  → bson.D → bson.MarshalExtJSON → json.Indent → string
 ```
@@ -235,7 +253,7 @@ Uses `bson.MarshalExtJSON(d, false, false)` for canonical Extended JSON without 
 ### Query Predicates (30 operators + 3 geometry helpers)
 
 | Category | Operators |
-|----------|-----------|
+| :--- | :--- |
 | Comparison | `Eq`, `Ne`, `Gt`, `Gte`, `Lt`, `Lte`, `In`, `Nin` |
 | Logical | `And`, `Or`, `Nor`, `Not` |
 | Element | `Exists`, `Type` |
@@ -248,7 +266,7 @@ Uses `bson.MarshalExtJSON(d, false, false)` for canonical Extended JSON without 
 ### Update Operators (21 operators)
 
 | Category | Operators |
-|----------|-----------|
+| :--- | :--- |
 | Field | `Set`, `Unset`, `Inc`, `Mul`, `Min`, `Max`, `Rename`, `CurrentDate`, `CurrentDateAsTimestamp`, `SetOnInsert` |
 | Array | `AddToSet`, `AddToSetEach`, `Pop`, `Pull`, `PullAll`, `Push`, `PushWithOpts` |
 | Bitwise | `BitAnd`, `BitOr`, `BitXor` |
@@ -256,7 +274,7 @@ Uses `bson.MarshalExtJSON(d, false, false)` for canonical Extended JSON without 
 ### Aggregation Stages (30+ stages)
 
 | Category | Stages |
-|----------|--------|
+| :--- | :--- |
 | Core | `Match`, `MatchRaw`, `Project`, `Group`, `Sort`, `Limit`, `Skip`, `Unwind`, `UnwindWithOpts` |
 | Joins | `Lookup`, `LookupPipeline`, `GraphLookup` |
 | Reshape | `AddFields`, `SetFields`, `Unset`, `ReplaceRoot`, `ReplaceWith`, `Redact` |
@@ -269,7 +287,7 @@ Uses `bson.MarshalExtJSON(d, false, false)` for canonical Extended JSON without 
 ### Stage Helpers (17 helpers)
 
 | Helper | Purpose |
-|--------|---------|
+| :--- | :--- |
 | `GroupSpec`, `GroupAcc`, `GroupID` | Build `$group` specs |
 | `Asc`, `Desc`, `SortSpec`, `SortRule` | Build sort documents |
 | `AddField`, `AddFieldsSpec` | Build `$addFields` / `$set` specs |
@@ -280,7 +298,7 @@ Uses `bson.MarshalExtJSON(d, false, false)` for canonical Extended JSON without 
 ### Expression Operators (~120 operators)
 
 | File | Categories |
-|------|------------|
+| :--- | :--- |
 | `expr_core.go` | Arithmetic, comparison, boolean, conditional |
 | `expr_data.go` | String, array, date, type conversion, set, object, literal, miscellaneous |
 | `expr_acc.go` | Accumulators (`AccSum`, `AccAvg`, `AccMin`, `AccMax`, `AccFirst`, `AccLast`, `AccPush`, `AccAddToSet`, `AccCount`, `AccTop`, `AccBottom`, `AccMedian`, `AccPercentile`, etc.) |

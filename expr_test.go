@@ -98,7 +98,7 @@ func TestAccCount(t *testing.T) {
 }
 
 func TestAccTop(t *testing.T) {
-	assert.Equal(t, "$top", AccTop(bson.D{{"score", -1}}, "$name")[0].Key)
+	assert.Equal(t, "$top", AccTop(bson.D{{Key: "score", Value: -1}}, "$name")[0].Key)
 }
 
 // --- Set Operators ---
@@ -128,5 +128,5 @@ func TestExprRand(t *testing.T) {
 }
 
 func TestExprLet(t *testing.T) {
-	assert.Equal(t, "$let", ExprLet(bson.D{{"total", ExprAdd("$price", "$tax")}}, "$$total")[0].Key)
+	assert.Equal(t, "$let", ExprLet(bson.D{{Key: "total", Value: ExprAdd("$price", "$tax")}}, "$$total")[0].Key)
 }

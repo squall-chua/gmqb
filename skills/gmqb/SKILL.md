@@ -337,7 +337,40 @@ dlq.Requeue(ctx, messages[0].ID)
 
 ---
 
-## 12. Code Generator
+## 12. REST API (`rest` package)
+
+Zero-boilerplate REST API that wraps any `gmqb.Collection[T]` and exposes standard CRUD endpoints as a framework-agnostic `http.Handler`.
+
+```go
+import "github.com/squall-chua/gmqb/rest"
+
+// 1. Define the resource
+users := rest.NewResource[User, string](coll, rest.Config[User, string]{
+    IDField:  "_id",
+    IDParser: func(s string) (string, error) { return s, nil },
+    FilterableFields: []rest.FilterField{
+        {Name: "status", BsonKey: "status", Op: rest.OpEq},
+        {Name: "age",    BsonKey: "age",    Op: rest.OpGte | rest.OpLte},
+    },
+    SortableFields: []string{"createdAt", "age"},
+})
+
+// 2. Mount to any router (supports Go 1.22+ PathValue)
+mux := http.NewServeMux()
+mux.Handle("/users", users)      // Collection (List, Create)
+mux.Handle("/users/{id}", users) // Resource (Read, Update, Delete)
+```
+
+Supported features:
+
+- **Filtering**: Allowlist-based filtering via query params. Supports both `field_op=v` and `field[op]=v` (e.g., `?age[gte]=18`).
+- **Sorting**: Allowlist-based sorting (`?sort=-createdAt,age`).
+- **Pagination**: Support for `offset/limit` and `cursor/limit`. The `?cursor=` parameter is direction-aware (supports both next and prev tokens).
+- **Lifecycle Hooks**: Complete set of `Before` and `After` hooks for all mutating operations (`Create`, `Replace`, `Update`, `Delete`).
+
+---
+
+## 13. Code Generator
 
 Convert MongoDB JSON into gmqb Go code.
 
@@ -381,4 +414,5 @@ Commonly used options across `Find`, `Update`, `BulkWrite`, etc.
 4. **Caching**: If caching is enabled, ensure `Watch()` is running for invalidation.
 5. **Pub/Sub**: Use `TailablePubSub` for lightweight event-driven needs.
 6. **Message Queue**: Use `Queue[T]` for durable background processing with delivery guarantees.
-7. **Generator**: Use `gmqb-gen` to quickly port existing shell queries.
+7. **REST API**: Use `rest.NewResource` to instantly expose a collection over HTTP with safe filtering and pagination.
+8. **Generator**: Use `gmqb-gen` to quickly port existing shell queries.

@@ -32,11 +32,17 @@ func NewPipeline() Pipeline {
 // BsonD returns the pipeline as a []bson.D (mongo.Pipeline), suitable for passing
 // to mongo.Collection.Aggregate().
 func (p Pipeline) BsonD() []bson.D {
+	if p.stages == nil {
+		return []bson.D{}
+	}
 	return p.stages
 }
 
 // updatePayload returns the []bson.D for Pipeline when used in update operations.
 func (p Pipeline) updatePayload() interface{} {
+	if p.stages == nil {
+		return []bson.D{}
+	}
 	return p.stages
 }
 

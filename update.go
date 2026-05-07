@@ -39,12 +39,18 @@ func NewUpdate() Updater {
 
 // updatePayload returns the bson.D for Updater.
 func (u Updater) updatePayload() interface{} {
+	if u.ops == nil {
+		return bson.D{}
+	}
 	return u.ops
 }
 
 // BsonD returns the update document as a bson.D, suitable for passing directly
 // to mongo.Collection.UpdateOne(), UpdateMany(), etc.
 func (u Updater) BsonD() bson.D {
+	if u.ops == nil {
+		return bson.D{}
+	}
 	return u.ops
 }
 

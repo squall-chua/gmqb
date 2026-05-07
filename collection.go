@@ -55,7 +55,11 @@ func (c *Collection[T]) Unwrap() *mongo.Collection {
 //	)
 func (c *Collection[T]) Find(ctx context.Context, filter Filter, opts ...FindOpt) ([]T, error) {
 	findOpts := buildFindOpts(opts)
-	cursor, err := c.coll.Find(ctx, filter.BsonD(), findOpts)
+	var f interface{} = filter.BsonD()
+	if filter.IsEmpty() {
+		f = bson.M{}
+	}
+	cursor, err := c.coll.Find(ctx, f, findOpts)
 	if err != nil {
 		return nil, err
 	}
@@ -340,7 +344,11 @@ func (c *Collection[T]) FindOneAndReplace(ctx context.Context, filter Filter, re
 //	count, err := coll.CountDocuments(ctx, gmqb.Gte("age", 18), gmqb.WithLimitCount(100))
 func (c *Collection[T]) CountDocuments(ctx context.Context, filter Filter, opts ...CountOpt) (int64, error) {
 	countOpts := buildCountOpts(opts)
-	return c.coll.CountDocuments(ctx, filter.BsonD(), countOpts)
+	var f interface{} = filter.BsonD()
+	if filter.IsEmpty() {
+		f = bson.M{}
+	}
+	return c.coll.CountDocuments(ctx, f, countOpts)
 }
 
 // Distinct returns the distinct values for a specified field.

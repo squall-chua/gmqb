@@ -62,7 +62,7 @@ func TestPipeline_Lookup(t *testing.T) {
 
 func TestPipeline_AddFields(t *testing.T) {
 	stages := NewPipeline().AddFields(AddFieldsSpec(
-		AddField("isAdult", bson.D{{"$gte", bson.A{"$age", 18}}}),
+		AddField("isAdult", bson.D{{Key: "$gte", Value: bson.A{"$age", 18}}}),
 	)).BsonD()
 	assert.Equal(t, "$addFields", stages[0][0].Key)
 }
@@ -98,7 +98,7 @@ func TestPipeline_ReplaceRoot(t *testing.T) {
 }
 
 func TestPipeline_RawStage(t *testing.T) {
-	stages := NewPipeline().RawStage("$search", bson.D{{"text", bson.D{{"query", "test"}}}}).BsonD()
+	stages := NewPipeline().RawStage("$search", bson.D{{Key: "text", Value: bson.D{{Key: "query", Value: "test"}}}}).BsonD()
 	assert.Equal(t, "$search", stages[0][0].Key)
 }
 

@@ -117,7 +117,7 @@ func TestWhere(t *testing.T) {
 }
 
 func TestExpr(t *testing.T) {
-	f := Expr(bson.D{{"$gt", bson.A{"$spent", "$budget"}}})
+	f := Expr(bson.D{{Key: "$gt", Value: bson.A{"$spent", "$budget"}}})
 	assert.NotEqual(t, "{}", f.CompactJSON())
 }
 
@@ -140,12 +140,12 @@ func TestElemMatch(t *testing.T) {
 // --- Geospatial ---
 
 func TestGeoIntersects(t *testing.T) {
-	geo := bson.D{{"type", "Point"}, {"coordinates", bson.A{1.0, 2.0}}}
+	geo := bson.D{{Key: "type", Value: "Point"}, {Key: "coordinates", Value: bson.A{1.0, 2.0}}}
 	assert.False(t, GeoIntersects("location", geo).IsEmpty())
 }
 
 func TestNear(t *testing.T) {
-	geo := bson.D{{"type", "Point"}, {"coordinates", bson.A{-73.9667, 40.78}}}
+	geo := bson.D{{Key: "type", Value: "Point"}, {Key: "coordinates", Value: bson.A{-73.9667, 40.78}}}
 	assert.False(t, Near("location", geo, 1000, 0).IsEmpty())
 }
 
@@ -176,7 +176,7 @@ func TestFilter_JSON(t *testing.T) {
 }
 
 func TestRaw(t *testing.T) {
-	f := Raw(bson.D{{"$text", bson.D{{"$search", "coffee"}}}})
+	f := Raw(bson.D{{Key: "$text", Value: bson.D{{Key: "$search", Value: "coffee"}}}})
 	assert.False(t, f.IsEmpty())
 }
 
@@ -251,7 +251,7 @@ func TestFilter_Not_NoMatch(t *testing.T) {
 }
 
 func TestFilter_JsonSchema(t *testing.T) {
-	f := JsonSchema(bson.D{{"type", "object"}})
+	f := JsonSchema(bson.D{{Key: "type", Value: "object"}})
 	assert.Equal(t, "$jsonSchema", f.BsonD()[0].Key)
 }
 

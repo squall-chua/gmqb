@@ -38,7 +38,7 @@ filter := gmqb.And(
 - **Pipeline stage helpers** — `GroupSpec`, `FillSpec`, `DensifySpec`, `SetWindowFieldsSpec`, etc.
 - **JSON output** — Print any query as JSON for debugging
 - **Functional options** — Clean API for find/update options
-- **Modular architecture** — Sub-packages for specialized features (`pubsub`, `mq`, `generator`)
+- **Modular architecture** — Sub-packages for specialized features (`pubsub`, `mq`, `rest`, `generator`)
 - **Zero-dependency Core** — The core query builder only depends on the official MongoDB driver
 
 ## Installation
@@ -498,6 +498,61 @@ filter := gmqb.And(
 )
 ```
 
+### REST API (`rest` package)
+
+gmqb provides a zero-boilerplate REST API sub-package that wraps any `gmqb.Collection[T]` and exposes standard CRUD endpoints as a framework-agnostic `http.Handler`.
+
+```go
+import "github.com/squall-chua/gmqb/rest"
+
+// 1. Define the resource
+users := rest.NewResource[User, string](coll, rest.Config[User, string]{
+    IDField:  "_id",
+    IDParser: func(s string) (string, error) { return s, nil },
+    FilterableFields: []rest.FilterField{
+        {Name: "status", BsonKey: "status", Op: rest.OpEq},
+        {Name: "age",    BsonKey: "age",    Op: rest.OpGte | rest.OpLte},
+    },
+    SortableFields: []string{"createdAt", "age"},
+})
+
+// 2. Mount to any router (supports Go 1.22+ PathValue)
+mux := http.NewServeMux()
+mux.Handle("/users", users)      // Collection (List, Create)
+mux.Handle("/users/{id}", users) // Resource (Read, Update, Delete)
+```
+
+Supported endpoints:
+- `GET /` — List with offset or cursor pagination, filtering, and sorting
+- `POST /` — Create
+- `GET /{id}` — Read
+- `PUT /{id}` — Replace
+- `PATCH /{id}` — Partial update
+- `DELETE /{id}` — Delete
+
+#### Advanced Filtering & Pagination
+
+The REST handler supports common API standards:
+
+- **Bracket-style Filtering**: `?age[gte]=18&status=active` (in addition to `?age_gte=18`)
+- **Pagination Aliases**: `?limit=10&offset=20` (alias for `skip`)
+- **Smart Keyset Pagination**: Use the `next` or `prev` tokens from the metadata with `?cursor=TOKEN`. The direction is encoded in the token, so the same parameter works for both forward and backward navigation.
+
+#### Lifecycle Hooks
+
+```go
+rest.Hooks[User, bson.ObjectID]{
+    BeforeCreate: func(ctx context.Context, doc *User) error { /* ... */ },
+    AfterCreate:  func(ctx context.Context, doc *User) { /* ... */ },
+    BeforeUpdate: func(ctx context.Context, id ID, patch map[string]any) error { /* ... */ },
+    AfterUpdate:  func(ctx context.Context, id ID, patch map[string]any) { /* ... */ },
+    BeforeReplace: func(ctx context.Context, id ID, doc *User) error { /* ... */ },
+    AfterReplace:  func(ctx context.Context, id ID, doc *User) { /* ... */ },
+    BeforeDelete: func(ctx context.Context, id ID) error { /* ... */ },
+    AfterDelete:  func(ctx context.Context, id ID) { /* ... */ },
+}
+```
+
 ### JSON Output
 
 ```go
@@ -584,6 +639,7 @@ The `examples/` directory contains 18 runnable programs demonstrating every majo
 | `17_query_cache_invalidation` | Auto-invalidation via MongoDB Change Streams |
 | `18_pubsub_tailable` | Type-safe pub/sub via capped collections and tailable cursors |
 | `19_message_queue` | Durable message queue, load-balancing, fan-out, DLQ, and exacty-once delivery |
+| `20_rest_api` | Framework-agnostic REST CRUD API with dual pagination and allowlist filtering |
 
 ## Documentation
 
