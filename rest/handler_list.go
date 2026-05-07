@@ -47,7 +47,9 @@ func (res *Resource[T, ID]) handleList(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 	}
-	findOpts = append(findOpts, gmqb.WithSort(currentSort))
+	if len(currentSort) > 0 {
+		findOpts = append(findOpts, gmqb.WithSort(currentSort))
+	}
 
 	// 4. Fetch Documents
 	docs, err := res.coll.Find(ctx, filter, findOpts...)

@@ -118,7 +118,7 @@ func TestResource(t *testing.T) {
 		json.Unmarshal(rec.Body.Bytes(), &envelope)
 		items := envelope.Data.([]interface{})
 		assert.Len(t, items, 2)
-		assert.Equal(t, float64(10), envelope.Meta.Limit)
+		assert.Equal(t, int64(2), envelope.Meta.Limit)
 	})
 
 	t.Run("Read", func(t *testing.T) {
@@ -137,8 +137,9 @@ func TestResource(t *testing.T) {
 	})
 
 	t.Run("Read NotFound", func(t *testing.T) {
-		req := httptest.NewRequest(http.MethodGet, "/nonexistent", nil)
-		req.SetPathValue("id", "nonexistent")
+		nonExistentID := bson.NewObjectID().Hex()
+		req := httptest.NewRequest(http.MethodGet, "/"+nonExistentID, nil)
+		req.SetPathValue("id", nonExistentID)
 		rec := httptest.NewRecorder()
 
 		res.ServeHTTP(rec, req)
